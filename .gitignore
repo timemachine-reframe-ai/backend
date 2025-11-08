@@ -26,14 +26,17 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
-.env
-.venv
+# Virtual environments & env files
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+.env
+.env.*
+*.env
+!.env.example
 
 # PyInstaller
 *.manifest
@@ -73,8 +76,12 @@ cover/
 # Local databases
 *.db
 *.sqlite3
+app/data/*.db
+app/data/*.sqlite3
+
+# Tooling artifacts
+.python-version
 
 # Misc
 .DS_Store
 Thumbs.db
-

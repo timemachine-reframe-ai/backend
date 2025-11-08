@@ -1,17 +1,27 @@
-# main.py
 from fastapi import FastAPI
-from app.api.endpoints import users
-from app.db.session import engine, Base
 
-# 데이터베이스 테이블 생성
-Base.metadata.create_all(bind=engine)
+from app.api.router import api_router
+from app.core.config import get_settings
+from app.db.base import Base
+from app.db.session import engine
 
-app = FastAPI(title="TIMEMACHINE-AI API", version="1.0.0")
+settings = get_settings()
 
-# 라우터 등록
-app.include_router(users.router, prefix="/api", tags=["users"])
+
+def create_application() -> FastAPI:
+    Base.metadata.create_all(bind=engine)
+
+    application = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
+    application.include_router(api_router, prefix=settings.API_PREFIX)
+    return application
+
+
+app = create_application()
 
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the TIMEMACHINE-AI API!"}
+    return {
+        "message": "Welcome to the TIMEMACHINE-AI API!",
+        "version": settings.VERSION,
+    }

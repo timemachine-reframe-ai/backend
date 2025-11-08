@@ -10,9 +10,8 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./app/data/app.db"
 
-    LANGCHAIN_MODEL: str = "gpt-4o-mini"
-    LANGCHAIN_API_KEY: str | None = None
-    LANGCHAIN_TRACING: bool = False
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_API_KEY: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

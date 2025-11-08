@@ -22,5 +22,5 @@ def readiness(settings: Settings = Depends(get_settings_dependency)):
     return {
         "status": "ready",
         "version": settings.VERSION,
-        "langchain_model": settings.LANGCHAIN_MODEL,
+        "gemini_model": settings.GEMINI_MODEL,
     }

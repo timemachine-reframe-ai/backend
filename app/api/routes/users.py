@@ -2,9 +2,10 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.api.dependencies import get_user_repository
+from app.api.dependencies import get_current_user, get_user_repository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import User, UserCreate, UserUpdate
+from app.models.user import User as UserModel
 
 router = APIRouter()
 
@@ -56,7 +57,10 @@ def update_user(
     user_id: int,
     payload: UserUpdate,
     repository: UserRepository = Depends(get_user_repository),
+    current_user: UserModel = Depends(get_current_user),
 ):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     user = repository.update(user_id, payload)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -68,7 +72,13 @@ def update_user(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete user",
 )
-def delete_user(user_id: int, repository: UserRepository = Depends(get_user_repository)):
+def delete_user(
+    user_id: int,
+    repository: UserRepository = Depends(get_user_repository),
+    current_user: UserModel = Depends(get_current_user),
+):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     deleted = repository.delete(user_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

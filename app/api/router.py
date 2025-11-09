@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import health, reflections, users
+from app.api.routes import auth, health, reflections, users
 
 api_router = APIRouter()
 
@@ -11,3 +11,4 @@ api_router.include_router(
     tags=["reflections"],
 )
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(auth.router, tags=["auth"])

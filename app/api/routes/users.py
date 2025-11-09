@@ -1,10 +1,10 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.api.dependencies import get_user_repository
 from app.repositories.user_repository import UserRepository
-from app.schemas.user import User, UserCreate
+from app.schemas.user import User, UserCreate, UserUpdate
 
 router = APIRouter()
 
@@ -43,3 +43,31 @@ def read_user(user_id: int, repository: UserRepository = Depends(get_user_reposi
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
+
+
+@router.put(
+    "/{user_id}",
+    response_model=User,
+    summary="Update user",
+)
+def update_user(
+    user_id: int,
+    payload: UserUpdate,
+    repository: UserRepository = Depends(get_user_repository),
+):
+    user = repository.update(user_id, payload)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
+
+
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete user",
+)
+def delete_user(user_id: int, repository: UserRepository = Depends(get_user_repository)):
+    deleted = repository.delete(user_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

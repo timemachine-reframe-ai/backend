@@ -21,6 +21,8 @@ def create_user_endpoint(
 ):
     if repository.get_by_email(payload.email):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+    if repository.get_by_login_id(payload.loginId):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Login ID already registered")
     return repository.create(payload)
 
 

@@ -31,6 +31,5 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    id: int
-    username: str
-    loginId: str
+    access_token: str
+    token_type: str = "bearer"

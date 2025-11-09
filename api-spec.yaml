@@ -1,0 +1,135 @@
+openapi: 3.0.3
+info:
+  title: Reflective Report API
+  version: "0.1.0"
+  description: |
+    Endpoints to request generation of reflective reports for chat sessions and retrieve them.
+servers:
+  - url: http://localhost:8000/api
+paths:
+  /reflections/sessions/{sessionId}/report:
+    post:
+      summary: Request generation of a reflective report for a session (async)
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requestor:
+                  type: string
+      responses:
+        '202':
+          description: Report queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued:
+                    type: boolean
+                  reportId:
+                    type: integer
+                  status:
+                    type: string
+  /reflections/reports/{reportId}:
+    get:
+      summary: Fetch report metadata and content (JSON)
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, md]
+            default: json
+      responses:
+        '200':
+          description: Report object or Markdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:
+                    type: integer
+                  session_id:
+                    type: integer
+                  status:
+                    type: string
+                  report_json:
+                    type: object
+                  created_at:
+                    type: string
+                    format: date-time
+                  processed_at:
+                    type: string
+                    format: date-time
+            text/markdown:
+              schema:
+                type: string
+  /reflections/reports/{reportId}/status:
+    get:
+      summary: Get report processing status
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: status object
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:
+                    type: integer
+                  status:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+                  processed_at:
+                    type: string
+                    format: date-time
+components:
+  schemas:
+    ReportRequest:
+      type: object
+      properties:
+        requestor:
+          type: string
+    ReportResponse:
+      type: object
+      properties:
+        report_id:
+          type: integer
+        session_id:
+          type: integer
+        status:
+          type: string
+        report_md:
+          type: string
+        report_json:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          format: date-time

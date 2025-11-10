@@ -1,10 +1,4 @@
-"""
-Report service skeleton integrated to existing FastAPI + LangChain codebase.
 
-- enqueue_report_generation: insert Reports row (pending) and enqueue an RQ job
-- generate_report_sync: worker function (sync) that produces report_md and report_json
-- call_gemini_alternatives: stub that should be replaced by existing LangChain Runnable chain
-"""
 
 import json
 import re

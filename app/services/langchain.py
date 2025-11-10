@@ -1,158 +1,122 @@
-from __future__ import annotations
+import re as _re_for_report
+from datetime import datetime
+from typing import Optional, List, Dict, Any
 
-import json
-import re
-from functools import cache
-from typing import Mapping, Sequence
+# 간단 PII 마스킹(운영 전 보안/컴플라이언스 점검 권장)
+_email_re = _re_for_report.compile(r"([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
+_phone_re = _re_for_report.compile(r"(\+?\d{1,3}[-.\s]?)?(\d{2,4}[-.\s]?){1,4}\d{2,4}")
+_rrn_re = _re_for_report.compile(r"\b\d{6}[-\s]?\d{7}\b")
 
-from app.core.config import Settings
+def _mask_pii(text: Optional[str]) -> Optional[str]:
+    """간단 PII 마스킹: 이메일->[EMAIL], 전화->[PHONE], 주민등록번호류->[ID]."""
+    if text is None:
+        return None
+    t = str(text)
+    t = _email_re.sub("[EMAIL]", t)
+    t = _rrn_re.sub("[ID]", t)
+    t = _phone_re.sub("[PHONE]", t)
+    return t
 
+# 의사결정 포인트 탐지용 한글 휴리스틱 정규식
+_DECISION_RE = _re_for_report.compile(
+    r"(할까요|할게요|결국|하기로|결정|선택|할래요|해볼게요|해볼까요|하기로 했어요|정했어요|결정했어요)",
+    re.I,
+)
 
-def _clean_json_text(raw: str) -> str:
-    """Strip markdown fences/backticks so json.loads can parse."""
-    if not raw:
-        return raw
-    raw = raw.strip()
-    code_block = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
-    match = code_block.match(raw)
-    if match:
-        return match.group(1).strip()
-    return raw
+def generate_alternatives_for_point(context_snippet: str, point_text: str) -> List[Dict[str, Any]]:
+    """
+    대안 생성(임시). LangChain 체인으로 교체 가능.
+    """
+    return [
+        {
+            "title": "의도 확인하기",
+            "summary": "핵심 범위만 정해서 우선 처리 제안",
+            "pros": ["부담 감소"],
+            "cons": ["추가 커뮤니케이션 필요"],
+            "script": "핵심으로 꼭 필요한 항목이 무엇인지 먼저 정할까요? 제가 그 부분만 맡아서 먼저 진행해볼게요.",
+        },
+        {
+            "title": "분할·위임 제안",
+            "summary": "작업을 쪼개 일부 위임하거나 기한을 조정",
+            "pros": ["품질 유지", "과부하 방지"],
+            "cons": ["조정 시간 필요"],
+            "script": "제가 A 파트를 맡고, B 파트는 누구에게 부탁하면 어떨까요?",
+        },
+    ]
 
+def generate_report_for_session(db, session_id: int, requestor: Optional[str] = None) -> Dict[str, Any]:
+    """
+    동기 프로토타입 리포트 생성기.
+    - Chat 모델에서 해당 세션의 채팅을 조회→의사결정 포인트 탐지→대안 생성→마크다운/JSON 반환
+    - 현재 DB에 저장하지 않습니다(운영 시 저장/비동기 큐로 확장 권장).
+    """
+    from app.models.chat import Chat  # lazy import: 실제 모델 필드명과 일치해야 합니다.
 
-class LangChainService:
-    """Gemini-powered reflection helper built with LangChain 1.x runnables."""
+    # Chat 테이블에서 session_id에 해당하는 행을 시간순으로 조회
+    chats = db.query(Chat).filter(Chat.session_id == session_id).order_by(Chat.timestamp).all()
+    if not chats:
+        raise ValueError(f"session_id={session_id} 에 대한 채팅 데이터가 없습니다.")
 
-    def __init__(self, settings: Settings):
-        self.settings = settings
+    # 간단한 컨텍스트 스니펫(상위 6개 메시지, PII 마스킹)
+    snippet = " / ".join([_mask_pii(getattr(c, "message", "") or "") for c in chats[:6]])
 
-    @cache
-    def _components(self):  # pragma: no cover - optional dependency
-        try:
-            from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-            from langchain_core.output_parsers import StrOutputParser
-            from langchain_core.prompts import ChatPromptTemplate
-            from langchain_google_genai import ChatGoogleGenerativeAI
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError(
-                "LangChain Gemini dependencies are not installed. Install 'langchain-google-genai'."
-            ) from exc
+    # 의사결정 포인트 탐지
+    points = []
+    for c in chats:
+        if getattr(c, "sender", None) == "user" and getattr(c, "message", None) and _DECISION_RE.search(c.message):
+            points.append({
+                # chat_id 필드명이 다르면 id로 대체
+                "chat_id": getattr(c, "chat_id", getattr(c, "id", None)),
+                "ts": c.timestamp.isoformat() if hasattr(c.timestamp, "isoformat") else str(c.timestamp),
+                "text": c.message,
+                "sentiment_label": getattr(c, "sentiment_label", None),
+                "sentiment_score": getattr(c, "sentiment_score", None),
+            })
 
-        return ChatPromptTemplate, ChatGoogleGenerativeAI, StrOutputParser, SystemMessage, HumanMessage, AIMessage
+    # 각 포인트에 대해 대안 생성
+    points_with_alts = []
+    for p in points:
+        safe_text = _mask_pii(p["text"])
+        alts = generate_alternatives_for_point(snippet, safe_text)
+        p["alternatives"] = alts
+        p["recommended"] = alts[0]["title"] if alts else None
+        points_with_alts.append(p)
 
-    @cache
-    def _llm(self):
-        _, ChatGoogleGenerativeAI, _, _, _, _ = self._components()
-        if not self.settings.GEMINI_API_KEY:
-            raise RuntimeError("GEMINI_API_KEY is not configured")
+    aha = f"{len(points_with_alts)}개의 의사결정 포인트를 감지했습니다." if points_with_alts else "명확한 의사결정 포인트가 발견되지 않았습니다."
+    next_action = points_with_alts[0]["alternatives"][0]["script"] if points_with_alts else None
 
-        return ChatGoogleGenerativeAI(
-            model=self.settings.GEMINI_MODEL,
-            google_api_key=self.settings.GEMINI_API_KEY,
-            temperature=0.2,
-        )
+    report_json = {
+        "summary": {"session_id": session_id, "aha": aha, "snippet": snippet},
+        "points": points_with_alts,
+        "next_action": next_action,
+        "meta": {"generated_at": datetime.utcnow().isoformat(), "method": "inline-sync-kr-prototype"},
+    }
 
-    @cache
-    def _summary_chain(self):
-        ChatPromptTemplate, _, StrOutputParser, *_ = self._components()
-        llm = self._llm()
+    # 마크다운 생성(읽기 쉬운 한글 형식)
+    md_lines = []
+    md_lines.append(f"# 회고 리포트 — 세션 {session_id}")
+    md_lines.append(f"기간: {chats[0].timestamp} ~ {chats[-1].timestamp}")
+    md_lines.append("")
+    md_lines.append("## 핵심 아하 포인트")
+    md_lines.append(f"- {aha}")
+    md_lines.append("")
+    md_lines.append("## 주요 의사결정 포인트")
+    for p in points_with_alts:
+        md_lines.append(f"### [{p['ts']}] {_mask_pii(p['text'])}")
+        md_lines.append(f"- 감정: {p.get('sentiment_label')}")
+        for alt in p.get("alternatives", []):
+            md_lines.append(f"  - **{alt['title']}**: {alt['summary']}")
+            md_lines.append(f"    - 장점: {'; '.join(alt.get('pros', []))}")
+            md_lines.append(f"    - 단점: {'; '.join(alt.get('cons', []))}")
+            md_lines.append(f"    - 스크립트: \"{alt.get('script')}\"")
+        md_lines.append("")
 
-        prompt = ChatPromptTemplate.from_template(
-            """
-            다음은 사용자가 경험한 상황입니다.
-            - 발생한 일: {what_happened}
-            - 감정: {emotions}
-            - 실제 반응: {what_you_did}
-            - 바랐던 결과: {desired_outcome}
+    if next_action:
+        md_lines.append("## 다음 행동(권장)")
+        md_lines.append(f"- {next_action}")
+        md_lines.append("")
 
-            위 정보를 바탕으로 JSON을 생성하세요.
-            형식:
-            {{
-              "summary": "<2-3문장 요약>",
-              "keyInsights": ["통찰1", "통찰2", "통찰3"],
-              "suggestedPhrases": ["추천 표현1", "추천 표현2"]
-            }}
-            모든 텍스트는 한국어로 작성하세요.
-            """
-        )
+    report_md = "\n".join(md_lines)
 
-        return prompt | llm | StrOutputParser()
-
-    def summarize_reflection(self, payload: Mapping[str, object]) -> dict:
-        """Generate a structured summary with key insights and suggested phrases."""
-        chain = self._summary_chain()
-        raw_response = chain.invoke(
-            {
-                "what_happened": payload.get("what_happened", ""),
-                "emotions": ", ".join(payload.get("emotions", [])),
-                "what_you_did": payload.get("what_you_did", ""),
-                "desired_outcome": payload.get("desired_outcome", ""),
-            }
-        )
-
-        cleaned = _clean_json_text(raw_response)
-        try:
-            parsed = json.loads(cleaned)
-        except json.JSONDecodeError:
-            parsed = {"summary": cleaned or raw_response}
-
-        def _normalize_array(value: object) -> list[str]:
-            if value is None:
-                return []
-            if isinstance(value, str):
-                return [value.strip()] if value.strip() else []
-            if isinstance(value, Sequence):
-                return [str(item).strip() for item in value if str(item).strip()]
-            return []
-
-        return {
-            "summary": str(parsed.get("summary", "")).strip(),
-            "keyInsights": _normalize_array(parsed.get("keyInsights")),
-            "suggestedPhrases": _normalize_array(parsed.get("suggestedPhrases")),
-        }
-
-    def generate_chat_reply(self, payload: Mapping[str, object]) -> str:
-        """Produce a persona-aware chat reply for the simulation."""
-        (
-            _,
-            _,
-            _,
-            SystemMessage,
-            HumanMessage,
-            AIMessage,
-        ) = self._components()
-        llm = self._llm()
-
-        system_prompt = (
-            "당신은 감정 회고 시뮬레이션을 돕는 AI로서 '{persona_name}' 역할을 완벽히 수행합니다. "
-            "실제 그 사람이 말하듯 '{persona_tone}' 말투와 '{persona_personality}' 성격을 유지하세요. "
-            "다음 상황 정보를 참고하여 공감적이고 실용적인 답변을 제공하되, 지나치게 장황하지 않게 3~4문장 이내로 답변하세요.\n"
-            "- 발생한 일: {what_happened}\n"
-            "- 감정: {emotions}\n"
-            "- 실제 반응: {what_you_did}\n"
-            "- 바랐던 결과: {desired_outcome}\n"
-            "대화는 반드시 한국어로 진행하며, 사용자의 감정을 검증하고 상대방(즉, 당신)의 관점에서 진솔하게 반응하세요."
-        ).format(
-            persona_name=payload.get("persona_name", "상대방"),
-            persona_tone=payload.get("persona_tone", "차분한"),
-            persona_personality=payload.get("persona_personality", "공감적인"),
-            what_happened=payload.get("what_happened", ""),
-            emotions=", ".join(payload.get("emotions", [])),
-            what_you_did=payload.get("what_you_did", ""),
-            desired_outcome=payload.get("desired_outcome", ""),
-        )
-
-        messages = [SystemMessage(content=system_prompt)]
-        for msg in payload.get("conversation", []):
-            text = msg.get("text", "")
-            if msg.get("sender") == "ai":
-                messages.append(AIMessage(content=text))
-            else:
-                messages.append(HumanMessage(content=text))
-
-        messages.append(HumanMessage(content=payload.get("message", "")))
-        response = llm.invoke(messages)
-
-        if isinstance(response, str):
-            return response
-        return getattr(response, "content", str(response))
+    return {"report_md": report_md, "report_json": report_json}
+# --- END append ---

@@ -1,24 +1,10 @@
 from fastapi import APIRouter
-
-# 기존 라우트들
-from app.api.routes import health, reflections, users
-# 새로 추가: 회고 리포트 라우트
-from app.api.routes import report_routes
+from app.api.routes.reflections import router as reflections_router
+from app.api.routes.report_write_routes import router as report_write_router
+from app.api.routes.report_read_routes import router as report_read_router
 
 api_router = APIRouter()
 
-# 헬스 체크
-api_router.include_router(health.router, prefix="/health", tags=["health"])
-
-# 기존 reflections 관련
-api_router.include_router(
-    reflections.router,
-    prefix="/reflections",
-    tags=["reflections"],
-)
-
-# 사용자 관련
-api_router.include_router(users.router, prefix="/users", tags=["users"])
-
-# 회고 리포트 (프로토타입, /api/reflections/sessions/{id}/report)
-api_router.include_router(report_routes.router, prefix="/reflections", tags=["reflections"])
+api_router.include_router(reflections_router, prefix="/api/reflections", tags=["reflections"])
+api_router.include_router(report_write_router, prefix="/api/reflections", tags=["reports"])
+api_router.include_router(report_read_router, prefix="/api/reflections", tags=["reports"])

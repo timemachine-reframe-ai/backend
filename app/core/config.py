@@ -11,7 +11,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./app/data/app.db"
 
     GEMINI_MODEL: str = "gemini-2.0-flash"
-    GEMINI_API_KEY: str | None = None
+    # GEMINI_API_KEY: str | None = None
+
+
+    JWT_SECRET_KEY: str = "change-me"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

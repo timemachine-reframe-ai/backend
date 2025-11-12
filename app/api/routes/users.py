@@ -1,10 +1,11 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.api.dependencies import get_user_repository
+from app.api.dependencies import get_current_user, get_user_repository
 from app.repositories.user_repository import UserRepository
-from app.schemas.user import User, UserCreate
+from app.schemas.user import User, UserCreate, UserUpdate
+from app.models.user import User as UserModel
 
 router = APIRouter()
 
@@ -21,6 +22,8 @@ def create_user_endpoint(
 ):
     if repository.get_by_email(payload.email):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+    if repository.get_by_login_id(payload.loginId):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Login ID already registered")
     return repository.create(payload)
 
 
@@ -43,3 +46,40 @@ def read_user(user_id: int, repository: UserRepository = Depends(get_user_reposi
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
+
+
+@router.put(
+    "/{user_id}",
+    response_model=User,
+    summary="Update user",
+)
+def update_user(
+    user_id: int,
+    payload: UserUpdate,
+    repository: UserRepository = Depends(get_user_repository),
+    current_user: UserModel = Depends(get_current_user),
+):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    user = repository.update(user_id, payload)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
+
+
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete user",
+)
+def delete_user(
+    user_id: int,
+    repository: UserRepository = Depends(get_user_repository),
+    current_user: UserModel = Depends(get_current_user),
+):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    deleted = repository.delete(user_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

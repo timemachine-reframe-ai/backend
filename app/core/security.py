@@ -1,9 +1,13 @@
-"""Password hashing helpers."""
 import base64
 import hashlib
 import hmac
 import os
-from typing import Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Tuple, Union
+
+from jose import JWTError, jwt
+
+from app.schemas.token import TokenPayload
 
 ALGORITHM = "pbkdf2_sha256"
 ITERATIONS = 390000
@@ -24,7 +28,6 @@ def _split_hash(stored_hash: str) -> Tuple[str, int, bytes, bytes]:
 
 
 def hash_password(plain_password: str) -> str:
-    """Generate a salted PBKDF2 hash for the given password."""
     if not plain_password:
         raise ValueError("Password must not be empty")
     salt = os.urandom(SALT_SIZE)
@@ -52,3 +55,30 @@ def verify_password(plain_password: str, stored_hash: str) -> bool:
         iterations,
     )
     return hmac.compare_digest(computed, hash_bytes)
+
+
+def create_access_token(
+    subject: Union[str, int],
+    *,
+    secret_key: str,
+    algorithm: str,
+    expires_minutes: int,
+) -> str:
+    if isinstance(subject, int):
+        subject = str(subject)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+    to_encode = {"sub": subject, "exp": expire}
+    return jwt.encode(to_encode, secret_key, algorithm=algorithm)
+
+
+def decode_access_token(
+    token: str,
+    *,
+    secret_key: str,
+    algorithm: str,
+) -> TokenPayload:
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+        return TokenPayload(**payload)
+    except JWTError as exc:
+        raise ValueError("Invalid or expired access token") from exc

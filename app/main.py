@@ -14,14 +14,6 @@ app.include_router(reflections_router, prefix="/api/reflections", tags=["reflect
 app.include_router(report_write_router, prefix="/api/reflections", tags=["reports"])
 app.include_router(report_read_router, prefix="/api/reflections", tags=["reports"])
 
-@app.on_event("startup")
-def _startup():
-    ensure_reports_failure_reason_column(engine)
-
-@app.get("/health")
-def health():
-    return {"ok": True}
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -32,3 +24,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def _startup():
+    ensure_reports_failure_reason_column(engine)
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+

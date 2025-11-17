@@ -1,6 +1,11 @@
 import json
-from typing import List, Mapping
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+import logging
+from typing import List, Mapping, Optional, Any
+
+from app.services.prompt_templates import SUMMARY_JSON_PROMPT
+from app.services.emotion_postprocess import postprocess_emotions, clamp_mood_timeline
+
+logger = logging.getLogger(__name__)
 
 
 class LangChainService:
@@ -9,8 +14,9 @@ class LangChainService:
     여기서는 동작 확인용 더미 체인(_summary_chain)과, 감정/결정/액션 추출 로직을 제공합니다.
     """
 
-    def __init__(self, settings=None):
+    def __init__(self, settings=None, llm: Optional[Any] = None):
         self.settings = settings
+        self.llm = llm
 
     def _safe_parse_json(self, raw: str) -> dict:
         try:
@@ -69,6 +75,7 @@ class LangChainService:
         keywords = ["해야", "준비", "정리", "확인", "작성", "검토", "추가"]
         items = []
         import re
+
         for s in sentences:
             if any(k in s for k in keywords):
                 item = {"text": s[:150], "owner": None, "due": None}
@@ -82,35 +89,135 @@ class LangChainService:
                 items.append(item)
         return items[:10]
 
+    def _invoke_llm_summary(self, text: str) -> Optional[dict]:
+        """
+        Invoke LLM with SUMMARY_JSON_PROMPT if LLM is configured.
+        Returns parsed dict or None if LLM not available or parsing fails.
+        """
+        if not self.llm:
+            return None
+
+        try:
+            prompt = SUMMARY_JSON_PROMPT.format(input_text=text)
+            response = self.llm.invoke(prompt)
+
+            # Extract text from response
+            if hasattr(response, "content"):
+                raw_text = response.content
+            else:
+                raw_text = str(response)
+
+            # Simple repair: trim leading/trailing non-JSON content
+            raw_text = raw_text.strip()
+
+            # Find JSON boundaries
+            start = raw_text.find("{")
+            end = raw_text.rfind("}")
+            if start >= 0 and end >= start:
+                raw_text = raw_text[start : end + 1]
+
+            parsed = json.loads(raw_text)
+            logger.info("LLM summary parsed successfully")
+            return parsed
+        except json.JSONDecodeError as e:
+            logger.warning(f"LLM response JSON parse failed: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"LLM invocation failed: {e}")
+            return None
+
     def _summary_chain(self):
         """
         실제 LangChain 체인을 구성해 반환하세요.
         여기서는 동작 확인용 더미 체인을 반환합니다.
         """
+
         class DummyChain:
             def invoke(self, vars):
                 return json.dumps(
                     {
-                        "summary": f"{vars.get('what_happened','')[:80]} 요약",
+                        "summary": f"{vars.get('what_happened', '')[:80]} 요약",
                         "keyInsights": ["인사이트 예시"],
                         "suggestedPhrases": ["표현 예시"],
                     },
                     ensure_ascii=False,
                 )
+
         return DummyChain()
 
     def summarize_reflection(self, payload: Mapping[str, object]) -> dict:
         emotions: List[str] = list(payload.get("emotions", []) or [])
+        base_text = " ".join(
+            [
+                str(payload.get("what_happened", "")),
+                str(payload.get("what_you_did", "")),
+                str(payload.get("desired_outcome", "")),
+            ]
+        )
+
         if not emotions:
-            base_text = " ".join(
-                [
-                    str(payload.get("what_happened", "")),
-                    str(payload.get("what_you_did", "")),
-                    str(payload.get("desired_outcome", "")),
-                ]
-            )
             emotions = self.detect_emotions(base_text)
 
+        # Try LLM path first
+        parsed = self._invoke_llm_summary(base_text)
+
+        if parsed:
+            # Apply post-processing for emotion normalization
+            parsed = postprocess_emotions(parsed, base_text)
+            parsed = clamp_mood_timeline(parsed)
+
+            # Extract public fields from LLM response
+            summary = str(parsed.get("summary", "")).strip()
+            key_insights = self._normalize_array(parsed.get("keyInsights"))
+            suggested_phrases = self._normalize_array(parsed.get("suggestedPhrases"))
+            emotions_from_llm = parsed.get("emotions", emotions)
+            decision_points = self._normalize_array(parsed.get("decisionPoints"))
+
+            action_items_raw = parsed.get("actionItems", [])
+            action_items: List[dict] = []
+            if isinstance(action_items_raw, list) and action_items_raw:
+                for ai in action_items_raw:
+                    if isinstance(ai, dict) and "text" in ai:
+                        action_items.append(
+                            {
+                                "text": str(ai.get("text"))[:150],
+                                "owner": ai.get("owner"),
+                                "due": ai.get("due"),
+                            }
+                        )
+                    elif isinstance(ai, str):
+                        action_items.append(
+                            {"text": ai[:150], "owner": None, "due": None}
+                        )
+
+            confidence = parsed.get("confidence", 0.5)
+            try:
+                confidence = float(confidence)
+            except Exception:
+                confidence = 0.5
+
+            # Return public fields + optional internal fields
+            result = {
+                "summary": summary,
+                "keyInsights": key_insights,
+                "suggestedPhrases": suggested_phrases,
+                "emotions": emotions_from_llm if emotions_from_llm else emotions,
+                "decisionPoints": decision_points,
+                "actionItems": action_items,
+                "confidence": confidence,
+            }
+
+            # Include extended fields if available
+            if "emotionsDetailed" in parsed:
+                result["emotionsDetailed"] = parsed["emotionsDetailed"]
+            if "moodTimeline" in parsed:
+                result["moodTimeline"] = parsed["moodTimeline"]
+
+            logger.info("Using LLM summary path")
+            return result
+
+        # Fallback to rule-based approach
+        logger.info("Using rule-based fallback")
         chain = self._summary_chain()
         raw_response = chain.invoke(
             {
@@ -129,7 +236,9 @@ class LangChainService:
 
         decision_points = self._normalize_array(parsed.get("decisionPoints"))
         if not decision_points:
-            decision_points = self._extract_decisions(" ".join([summary] + key_insights))
+            decision_points = self._extract_decisions(
+                " ".join([summary] + key_insights)
+            )
 
         action_items_raw = parsed.get("actionItems", [])
         action_items: List[dict] = []
@@ -146,7 +255,9 @@ class LangChainService:
                 elif isinstance(ai, str):
                     action_items.append({"text": ai[:150], "owner": None, "due": None})
         if not action_items:
-            action_items = self._extract_action_items(" ".join([summary] + key_insights))
+            action_items = self._extract_action_items(
+                " ".join([summary] + key_insights)
+            )
 
         confidence = parsed.get("confidence", 0.5)
         try:

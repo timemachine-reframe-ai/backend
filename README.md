@@ -64,8 +64,12 @@ python -m compileall app
 - `GET /api/health/live` : 라이브니스 체크
 - `GET /api/health/ready` : 서비스 버전과 사용 중인 Gemini 모델 확인
 - `POST /api/reflections/summary` : 상황 정보를 입력받아 요약 · 핵심 인사이트 · 추천 표현 JSON 생성
+- `POST /api/reflections/reports` : 세션 리포트 생성 및 저장 (Markdown + JSON)
+- `GET /api/reflections/reports/{reportId}` : 리포트 조회 (JSON/Markdown 형식 지원)
 - `POST /api/reflections/chat` : 페르소나 정보와 대화 로그를 기반으로 시뮬레이션 대화 답변 생성
 - `POST /api/users` / `GET /api/users` / `GET /api/users/{id}` : 기본 사용자 CRUD (데모용)
+
+자세한 리포트 기능 문서는 [docs/reporting.md](docs/reporting.md)를 참고하세요.
 
 새로운 리소스는 `app/api/routes`에 라우터를 추가하고, 내부 로직은 `services/` 혹은 `repositories/`에 분리하면 됨.
 

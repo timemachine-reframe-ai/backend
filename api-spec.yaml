@@ -1,15 +1,92 @@
 openapi: 3.0.3
 info:
   title: Reflective Report API
-  version: "0.1.0"
+  version: "0.2.0"
   description: |
     Endpoints to request generation of reflective reports for chat sessions and retrieve them.
+    
+    The report_json field may contain extended fields (emotionsDetailed, moodTimeline) when LLM analysis is available.
+    Core fields are always present for backwards compatibility.
 servers:
   - url: http://localhost:8000/api
 paths:
+  /reflections/summary:
+    post:
+      summary: Generate reflection summary without persistence
+      tags:
+        - reflections
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - whatHappened
+                - whatYouDid
+                - howYouWishItHadGone
+              properties:
+                whatHappened:
+                  type: string
+                  description: Description of what happened
+                whatYouDid:
+                  type: string
+                  description: What you did in the situation
+                howYouWishItHadGone:
+                  type: string
+                  description: How you wish it had gone (desired outcome)
+                emotions:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional emotion labels (auto-detected if not provided)
+      responses:
+        '200':
+          description: Summary generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReflectionSummary'
+        '503':
+          description: Service unavailable (LLM error)
+        '500':
+          description: Internal server error
+  /reflections/reports:
+    post:
+      summary: Create and persist a reflection report
+      tags:
+        - reports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionId
+              properties:
+                sessionId:
+                  type: string
+                  description: Session identifier
+                requestor:
+                  type: string
+                  description: Optional requestor identifier
+      responses:
+        '200':
+          description: Report created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+        '503':
+          description: Service unavailable (LLM error)
+        '500':
+          description: Internal server error
   /reflections/sessions/{sessionId}/report:
     post:
       summary: Request generation of a reflective report for a session (async)
+      tags:
+        - reports
       parameters:
         - name: sessionId
           in: path
@@ -41,7 +118,9 @@ paths:
                     type: string
   /reflections/reports/{reportId}:
     get:
-      summary: Fetch report metadata and content (JSON)
+      summary: Fetch report metadata and content
+      tags:
+        - reports
       parameters:
         - name: reportId
           in: path
@@ -55,6 +134,7 @@ paths:
             type: string
             enum: [json, md]
             default: json
+          description: Response format (json or markdown)
       responses:
         '200':
           description: Report object or Markdown
@@ -66,23 +146,32 @@ paths:
                   report_id:
                     type: integer
                   session_id:
-                    type: integer
+                    type: string
                   status:
                     type: string
+                    enum: [pending, finished, failed]
                   report_json:
-                    type: object
+                    $ref: '#/components/schemas/ReportJSON'
+                  failure_reason:
+                    type: string
+                    nullable: true
                   created_at:
                     type: string
                     format: date-time
                   processed_at:
                     type: string
                     format: date-time
+                    nullable: true
             text/markdown:
               schema:
                 type: string
+        '404':
+          description: Report not found
   /reflections/reports/{reportId}/status:
     get:
       summary: Get report processing status
+      tags:
+        - reports
       parameters:
         - name: reportId
           in: path
@@ -109,27 +198,184 @@ paths:
                     format: date-time
 components:
   schemas:
+    ActionItem:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: Action item description
+        owner:
+          type: string
+          nullable: true
+          description: Person responsible for the action
+        due:
+          type: string
+          nullable: true
+          description: Due date in YYYY-MM-DD format
+    
+    ReflectionSummary:
+      type: object
+      description: Core reflection summary fields (always present)
+      required:
+        - summary
+        - keyInsights
+        - suggestedPhrases
+        - emotions
+        - decisionPoints
+        - actionItems
+        - confidence
+      properties:
+        summary:
+          type: string
+          description: 1-3 sentence summary
+        keyInsights:
+          type: array
+          items:
+            type: string
+          description: 2-5 key insights
+        suggestedPhrases:
+          type: array
+          items:
+            type: string
+          description: 2-5 suggested phrases
+        emotions:
+          type: array
+          items:
+            type: string
+          description: Top 1-3 emotion labels from Korean taxonomy
+        decisionPoints:
+          type: array
+          items:
+            type: string
+          description: 1-5 decision points
+        actionItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActionItem'
+          description: 1-10 action items
+        confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Confidence score
+    
+    EmotionDetailed:
+      type: object
+      description: Detailed emotion analysis (LLM path only)
+      required:
+        - label
+        - score
+        - polarity
+        - vad
+        - evidence
+        - spans
+      properties:
+        label:
+          type: string
+          description: Emotion label from taxonomy
+        score:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+        polarity:
+          type: string
+          enum: [neg, neu, pos]
+        vad:
+          type: object
+          properties:
+            valence:
+              type: number
+              format: float
+            arousal:
+              type: number
+              format: float
+            dominance:
+              type: number
+              format: float
+        evidence:
+          type: string
+          description: Supporting text evidence (max 200 chars)
+        spans:
+          type: array
+          items:
+            type: object
+            properties:
+              start:
+                type: integer
+              end:
+                type: integer
+    
+    MoodTimelineSegment:
+      type: object
+      description: Mood timeline segment (LLM path only)
+      required:
+        - t
+        - labels
+      properties:
+        t:
+          type: integer
+          description: Time segment index
+        labels:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              score:
+                type: number
+                format: float
+    
+    ReportJSON:
+      allOf:
+        - $ref: '#/components/schemas/ReflectionSummary'
+        - type: object
+          description: |
+            Extended report JSON that may include optional fields when LLM analysis is available.
+            Core fields are always present for backwards compatibility.
+          properties:
+            emotionsDetailed:
+              type: array
+              items:
+                $ref: '#/components/schemas/EmotionDetailed'
+              description: Optional detailed emotion analysis (available with LLM)
+            moodTimeline:
+              type: array
+              items:
+                $ref: '#/components/schemas/MoodTimelineSegment'
+              description: Optional mood timeline with 3-6 segments (available with LLM)
+    
     ReportRequest:
       type: object
       properties:
         requestor:
           type: string
+    
     ReportResponse:
       type: object
       properties:
         report_id:
           type: integer
         session_id:
-          type: integer
+          type: string
         status:
           type: string
+          enum: [pending, finished, failed]
+        failure_reason:
+          type: string
+          nullable: true
         report_md:
           type: string
         report_json:
-          type: object
+          $ref: '#/components/schemas/ReportJSON'
         created_at:
           type: string
           format: date-time
         processed_at:
           type: string
           format: date-time
+          nullable: true

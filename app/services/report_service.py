@@ -1,9 +1,6 @@
-from datetime import datetime
-import json
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.models.report import Report
 from app.services.langchain import LangChainService
 
 
@@ -79,5 +76,11 @@ def generate_report_for_session(
         "actionItems": summary_struct["actionItems"],
         "confidence": summary_struct["confidence"],
     }
+
+    # Include extended fields if available from LLM path
+    if "emotionsDetailed" in summary_struct:
+        report_json["emotionsDetailed"] = summary_struct["emotionsDetailed"]
+    if "moodTimeline" in summary_struct:
+        report_json["moodTimeline"] = summary_struct["moodTimeline"]
 
     return {"report_md": report_md, "report_json": report_json}

@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -16,13 +17,34 @@ def get_settings_dependency() -> Settings:
     """Expose application settings as a FastAPI dependency."""
     return get_settings()
 
+
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
+
 
 def get_langchain_service(
     settings: Settings = Depends(get_settings_dependency),
 ) -> LangChainService:
-    return LangChainService(settings=settings)
+    """
+    Initialize LangChainService with optional LLM.
+    If GEMINI_API_KEY is configured, injects ChatGoogleGenerativeAI.
+    Otherwise, returns service with no LLM (uses rule-based fallback).
+    """
+    llm: Optional[object] = None
+
+    if settings.GEMINI_API_KEY:
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+
+            llm = ChatGoogleGenerativeAI(
+                model=settings.GEMINI_MODEL,
+                google_api_key=settings.GEMINI_API_KEY,
+            )
+        except Exception:
+            # If LLM initialization fails, proceed with None (fallback mode)
+            pass
+
+    return LangChainService(settings=settings, llm=llm)
 
 
 def get_token_payload(

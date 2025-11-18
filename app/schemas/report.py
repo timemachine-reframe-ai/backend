@@ -2,8 +2,10 @@ from pydantic import BaseModel
 from typing import List, Optional, Any
 from datetime import datetime
 
+
 class ReportRequest(BaseModel):
     requestor: Optional[str] = None
+
 
 class Alternative(BaseModel):
     title: str
@@ -11,6 +13,7 @@ class Alternative(BaseModel):
     pros: List[str]
     cons: List[str]
     script: str
+
 
 class DecisionPoint(BaseModel):
     chat_id: int
@@ -21,12 +24,14 @@ class DecisionPoint(BaseModel):
     alternatives: List[Alternative]
     recommended: Optional[str]
 
+
 class ReportSummary(BaseModel):
     session_id: int
     period_start: datetime
     period_end: datetime
     aha: str
     next_action: Optional[str]
+
 
 class ReportResponse(BaseModel):
     report_id: int

@@ -8,11 +8,15 @@ from app.services.langchain import generate_report_for_session
 
 router = APIRouter()
 
+
 class ReportRequest(BaseModel):
     requestor: Optional[str] = None
 
+
 @router.post("/sessions/{session_id}/report", status_code=200)
-def request_report(session_id: int, payload: ReportRequest, db: Session = Depends(get_db)):
+def request_report(
+    session_id: int, payload: ReportRequest, db: Session = Depends(get_db)
+):
     """
     회고 리포트 생성(동기 프로토타입).
     - 이 엔드포인트는 DB에 저장하지 않고, 호출 즉시 리포트를 생성하여 반환합니다.

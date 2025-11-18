@@ -7,9 +7,10 @@ class ActionItem(BaseModel):
     owner: Optional[str] = None
     due: Optional[str] = None  # 날짜 문자열  (YYYY-MM-DD)
 
+
 class ReflectionSummaryRequest(BaseModel):
     what_happened: str = Field(..., alias="whatHappened")
-    emotions: Optional[List[str]] = Field(default=None) 
+    emotions: Optional[List[str]] = Field(default=None)
     what_you_did: str = Field(..., alias="whatYouDid")
     desired_outcome: str = Field(..., alias="howYouWishItHadGone")
 

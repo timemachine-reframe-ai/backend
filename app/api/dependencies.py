@@ -22,7 +22,8 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
 def get_langchain_service(
     settings: Settings = Depends(get_settings_dependency),
 ) -> LangChainService:
-    return LangChainService(settings=settings)
+    llm = create_llm(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
+    return LangChainService(settings=settings, llm=llm)
 
 
 def get_token_payload(

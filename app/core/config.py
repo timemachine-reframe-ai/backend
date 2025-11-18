@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./app/data/app.db"
 
     GEMINI_MODEL: str = "gemini-2.0-flash"
-    # GEMINI_API_KEY: str | None = None
+    GEMINI_API_KEY: str | None = None
 
 
     JWT_SECRET_KEY: str = "change-me"

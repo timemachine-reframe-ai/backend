@@ -25,11 +25,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 def _startup():
     ensure_reports_failure_reason_column(engine)
 
+
 @app.get("/health")
 def health():
     return {"ok": True}
-

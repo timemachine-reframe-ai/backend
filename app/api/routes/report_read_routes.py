@@ -10,7 +10,9 @@ router = APIRouter()
 
 
 @router.get("/reports/{report_id}", summary="리포트 상세 조회")
-def get_report(report_id: int, db: Session = Depends(get_db), format: str | None = None):
+def get_report(
+    report_id: int, db: Session = Depends(get_db), format: str | None = None
+):
     report = db.query(Report).filter(Report.report_id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")

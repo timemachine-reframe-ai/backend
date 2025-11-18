@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -17,13 +18,15 @@ def get_settings_dependency() -> Settings:
     """Expose application settings as a FastAPI dependency."""
     return get_settings()
 
+
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
+
 
 def get_langchain_service(
     settings: Settings = Depends(get_settings_dependency),
 ) -> LangChainService:
-    llm = create_llm(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
+
     return LangChainService(settings=settings, llm=llm)
 
 

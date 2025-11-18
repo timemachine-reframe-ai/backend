@@ -1,6 +1,7 @@
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
+
 def ensure_reports_failure_reason_column(engine: Engine) -> None:
     """
     Alembic 없이 운영 중 컬럼이 없을 수 있어, 앱 시작 시 안전하게 추가한다.
@@ -12,7 +13,7 @@ def ensure_reports_failure_reason_column(engine: Engine) -> None:
     try:
         cols = [c["name"] for c in insp.get_columns("reports")]
     except Exception:
-        return  
+        return
 
     if "failure_reason" in cols:
         return

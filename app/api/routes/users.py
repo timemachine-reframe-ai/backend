@@ -21,9 +21,14 @@ def create_user_endpoint(
     repository: UserRepository = Depends(get_user_repository),
 ):
     if repository.get_by_email(payload.email):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
+        )
     if repository.get_by_login_id(payload.loginId):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Login ID already registered")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Login ID already registered",
+        )
     return repository.create(payload)
 
 
@@ -44,7 +49,9 @@ def read_users(
 def read_user(user_id: int, repository: UserRepository = Depends(get_user_repository)):
     user = repository.get(user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     return user
 
 
@@ -63,7 +70,9 @@ def update_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     user = repository.update(user_id, payload)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     return user
 
 
@@ -81,5 +90,7 @@ def delete_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     deleted = repository.delete(user_id)
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

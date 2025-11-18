@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.repositories.user_repository import UserRepository
 from app.schemas.token import TokenPayload
 from app.services.langchain import LangChainService
+from app.services.llm_client import create_llm
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 

@@ -1,5 +1,6 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
@@ -19,7 +20,7 @@ def get_report(
     if format == "md":
         if report.status != "finished":
             raise HTTPException(status_code=400, detail="Report not finished")
-        return report.report_md or ""
+        return Response(content=report.report_md or "", media_type="text/markdown")
 
     parsed_json = {}
     if report.report_json and report.status == "finished":

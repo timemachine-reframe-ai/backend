@@ -31,8 +31,20 @@ uvicorn app.main:app --reload
 | `PROJECT_NAME` | FastAPI 문서/헬스에서 노출되는 이름 |
 | `API_PREFIX` | 모든 라우터 앞에 붙는 prefix (`/api`) |
 | `DATABASE_URL` | SQLAlchemy 연결 문자열 (기본 SQLite 파일) |
-| `GEMINI_MODEL` | 사용할 Gemini 모델 ID (기본 `gemini-2.5-flash`) |
-| `GEMINI_API_KEY` | Google Generative AI API 키 |
+| `GEMINI_MODEL` | 사용할 Gemini 모델 ID (기본 `gemini-2.0-flash`) |
+| `GEMINI_API_KEY` | Google Generative AI API 키 (**선택사항**) |
+
+### LLM 활성화
+
+`GEMINI_API_KEY`를 설정하면 LLM 기반 분석 경로가 활성화됩니다:
+- **리포트에 `emotionsDetailed`와 `moodTimeline` 필드 포함** (상세한 감정 분석 및 시간대별 기분 변화)
+- 더 정확하고 풍부한 인사이트와 표현 제안
+
+`GEMINI_API_KEY`가 설정되지 않은 경우:
+- **시스템은 자동으로 규칙 기반 분석 경로로 전환됩니다** (에러 없이 정상 작동)
+- 기본 필드만 제공 (`summary`, `keyInsights`, `suggestedPhrases` 등)
+
+Google AI Studio에서 API 키를 발급받으려면: https://aistudio.google.com/app/apikey
 
 모든 LangChain 체인은 `prompt | model | parser` 패턴으로 구성되어 있으므로, 새로운 분석/대화 체인을 추가할 때도 동일한 형태를 유지하면 됨.
 
@@ -123,3 +135,36 @@ Content-Type: application/json
 ```
 
 → `{"reply": "..."}` 형태로 반환되며, Gemini 키가 없으면 503, 그 외 예외는 500으로 응답.
+
+## 빠른 테스트 (Smoke Tests)
+
+서버 시작 후 다음 명령으로 주요 엔드포인트를 테스트할 수 있습니다:
+
+```bash
+# 1. 헬스 체크
+curl http://localhost:8000/api/health/live
+
+# 2. 회고 요약 생성
+curl -X POST http://localhost:8000/api/reflections/summary \
+  -H "Content-Type: application/json" \
+  -d '{
+    "whatHappened": "회의에서 충돌",
+    "whatYouDid": "즉각 반박",
+    "howYouWishItHadGone": "차분히 설명"
+  }'
+
+# 3. 리포트 생성 (sessionId는 임의의 숫자)
+curl -X POST http://localhost:8000/api/reflections/reports \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId": 123}'
+
+# 4. 리포트 조회 (JSON)
+curl http://localhost:8000/api/reflections/reports/1
+
+# 5. 리포트 조회 (Markdown, Content-Type: text/markdown 확인)
+curl -i http://localhost:8000/api/reflections/reports/1?format=md
+```
+
+**LLM 활성화 상태 확인:**
+- `GEMINI_API_KEY`가 설정된 경우: 리포트 응답에 `emotionsDetailed`와 `moodTimeline` 필드 포함
+- `GEMINI_API_KEY`가 없는 경우: 기본 필드만 포함하며 에러 없이 정상 작동

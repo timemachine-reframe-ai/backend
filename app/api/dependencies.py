@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.repositories.user_repository import UserRepository
 from app.schemas.token import TokenPayload
 from app.services.langchain import LangChainService
+from app.services.llm_client import create_llm
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 
@@ -25,24 +26,6 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
 def get_langchain_service(
     settings: Settings = Depends(get_settings_dependency),
 ) -> LangChainService:
-    """
-    Initialize LangChainService with optional LLM.
-    If GEMINI_API_KEY is configured, injects ChatGoogleGenerativeAI.
-    Otherwise, returns service with no LLM (uses rule-based fallback).
-    """
-    llm: Optional[object] = None
-
-    if settings.GEMINI_API_KEY:
-        try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
-
-            llm = ChatGoogleGenerativeAI(
-                model=settings.GEMINI_MODEL,
-                google_api_key=settings.GEMINI_API_KEY,
-            )
-        except Exception:
-            # If LLM initialization fails, proceed with None (fallback mode)
-            pass
 
     return LangChainService(settings=settings, llm=llm)
 

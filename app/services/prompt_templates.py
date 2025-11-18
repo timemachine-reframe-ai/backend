@@ -20,7 +20,7 @@ SUMMARY_JSON_PROMPT = """당신은 회고 분석 전문가입니다. 사용자�
   "decisionPoints": ["결정1", "결정2", "결정3", "결정4", "결정5"],
   "actionItems": [
     {{"text": "할일1", "owner": "담당자명 또는 null", "due": "YYYY-MM-DD 또는 null"}},
-    {{"text": "할일2", "owner": null, "due": null"}}
+    {{"text": "할일2", "owner": null, "due": null}}
   ],
   "confidence": 0.85,
   "emotionsDetailed": [

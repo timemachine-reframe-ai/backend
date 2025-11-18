@@ -58,7 +58,10 @@ The system normalizes common synonyms to canonical labels:
 - `actionItems` (array of objects): 1-10 action items with optional owner/due date
 - `confidence` (float): Confidence score between 0.0-1.0
 
-### Extended Fields (LLM Path Only)
+### Extended Fields (Available Only When LLM is Enabled)
+
+**Note:** These fields are only included when `GEMINI_API_KEY` is configured and the LLM successfully processes the request.
+
 - `emotionsDetailed` (array of objects): Detailed emotion analysis with:
   - `label` (string): Emotion from taxonomy
   - `score` (float): Confidence score 0-1
@@ -228,19 +231,40 @@ Return core fields only
 
 ## Configuration
 
-The LangChainService can be initialized with an optional LLM:
+### Enabling the LLM Path
+
+The system supports two analysis modes:
+
+1. **LLM-based analysis (with `GEMINI_API_KEY`):**
+   - Provides richer results with `emotionsDetailed` and `moodTimeline`
+   - More accurate insights and suggestions
+   - Requires valid Google Generative AI API key
+
+2. **Rule-based fallback (without `GEMINI_API_KEY`):**
+   - Works without any API key
+   - Returns core fields only
+   - No errors or degradation
+
+To enable the LLM path:
+
+1. Get an API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Set the environment variable:
+   ```bash
+   GEMINI_API_KEY=your_api_key_here
+   GEMINI_MODEL=gemini-2.0-flash  # Optional, this is the default
+   ```
+3. Restart the server
+
+The LangChainService is automatically configured by the dependency injection system:
 
 ```python
-from langchain_google_genai import ChatGoogleGenerativeAI
-from app.services.langchain import LangChainService
-
-# With LLM (enables extended analysis)
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
-service = LangChainService(settings=settings, llm=llm)
-
-# Without LLM (rule-based fallback)
-service = LangChainService(settings=settings)
+# app/api/dependencies.py
+def get_langchain_service(settings: Settings = Depends(get_settings_dependency)):
+    llm = create_llm(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
+    return LangChainService(settings=settings, llm=llm)
 ```
+
+If `GEMINI_API_KEY` is not set or the LLM fails to initialize, `create_llm()` returns `None` and the service gracefully falls back to rule-based analysis.
 
 ## Validation and Post-Processing
 
@@ -295,13 +319,41 @@ Manual smoke tests should verify:
 1. **POST /api/reflections/summary** returns valid public schema
 2. **POST /api/reflections/reports** persists with extended fields when LLM available
 3. **GET /api/reflections/reports/{id}?format=json** returns persisted JSON
-4. **GET /api/reflections/reports/{id}?format=md** returns Markdown
+4. **GET /api/reflections/reports/{id}?format=md** returns Markdown with `Content-Type: text/markdown`
 5. No LLM configuration: System uses fallback without errors
 
-Example curl commands:
+### Testing with LLM Enabled
+
+Set `GEMINI_API_KEY` in `.env` and run:
 
 ```bash
-# Summary endpoint
+# Summary endpoint - should include emotionsDetailed and moodTimeline in response
+curl -X POST http://localhost:8000/api/reflections/summary \
+  -H "Content-Type: application/json" \
+  -d '{
+    "whatHappened": "회의에서 충돌",
+    "whatYouDid": "반박했다",
+    "howYouWishItHadGone": "차분하게 설명"
+  }'
+
+# Create report - should persist extended fields
+curl -X POST http://localhost:8000/api/reflections/reports \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId": 123}'
+
+# Get report (JSON) - should show emotionsDetailed and moodTimeline
+curl http://localhost:8000/api/reflections/reports/1
+
+# Get report (Markdown) - should return text/markdown content type
+curl -i http://localhost:8000/api/reflections/reports/1?format=md
+```
+
+### Testing with LLM Disabled (Fallback Mode)
+
+Remove or comment out `GEMINI_API_KEY` in `.env` and run the same commands:
+
+```bash
+# Summary endpoint - should return core fields only (no emotionsDetailed/moodTimeline)
 curl -X POST http://localhost:8000/api/reflections/summary \
   -H "Content-Type: application/json" \
   -d '{

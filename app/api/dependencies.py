@@ -8,7 +8,7 @@ from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.repositories.user_repository import UserRepository
 from app.schemas.token import TokenPayload
-from app.services.langchain import LangChainService
+from app.services import LangChainService
 from app.services.llm_client import create_llm
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
@@ -26,7 +26,10 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
 def get_langchain_service(
     settings: Settings = Depends(get_settings_dependency),
 ) -> LangChainService:
-
+    llm = create_llm(
+        api_key=settings.GEMINI_API_KEY,
+        model=settings.GEMINI_MODEL,
+    )
     return LangChainService(settings=settings, llm=llm)
 
 

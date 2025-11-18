@@ -1,95 +1,113 @@
 # TIMEMACHINE AI – 백엔드
 
-LangChain 1.0.5 Runnable + Gemini 2.5 Flash 조합으로 작동하는 FastAPI 서비스.  
-프론트엔드는 `/api/reflections/*`만 호출하며, 실제 LLM 호출·프롬프트·키 관리·에러 처리를 모두 서버가 담당.
+Gemini 2.5 Flash + LangChain 조합으로 회고 요약, 시뮬레이션 대화, 리포트 생성을 담당하는 FastAPI 서비스입니다. 프런트엔드는 `/api/reflections/*`만 호출하고, 모든 프롬프트/LLM 키/후처리는 서버에서 관리합니다.
 
-## 기술 스택
+---
+
+## 1. 기술 스택
 - **FastAPI + Uvicorn**: REST API 및 CORS 처리
-- **SQLAlchemy ORM (기본 SQLite)**: 사용자 데이터 저장
-- **Pydantic v2 + pydantic-settings**: 타입 안전성과 설정 관리
-- **LangChain 1.0.5**: Runnable 파이프라인으로 요약/대화 체인 구현
-- **LangChain-Google-GenAI 3.0.1**: Gemini 2.5 Flash 모델 연동
+- **SQLAlchemy (SQLite 기본)**: 사용자·리포트 저장
+- **Pydantic v2 + pydantic-settings**: DTO 및 설정 관리
+- **LangChain + langchain-google-genai**: Gemini 2.5 Flash 모델 연동
 
-## 빠른 시작
+---
+
+## 2. 디렉터리 구조
+```
+app/
+├── api/                # FastAPI 라우터와 의존성 주입
+├── core/               # 환경설정, 보안, 공통 유틸
+├── db/                 # SQLAlchemy Base/세션
+├── models/             # ORM 모델
+├── repositories/       # 데이터 접근 레이어
+├── schemas/            # Pydantic 요청/응답 모델
+└── services/
+    ├── reflection/     # LangChain 기반 감정·요약·채팅 서비스
+    └── report_service.py
+```
+
+---
+
+## 3. 빠른 시작
 ```bash
 cd backend
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate          # Windows는 .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env
-# GEMINI_API_KEY 등 값을 채워 넣어야함.
-
+cp .env.example .env                # GEMINI_API_KEY 등 값을 채워 넣으세요
 uvicorn app.main:app --reload
 ```
+기본 헬스 체크: <http://localhost:8000/api/health>
 
-기본 헬스 체크: <http://localhost:8000/api/health/live>
+자주 쓰는 명령:
+```bash
+uvicorn app.main:app --reload                       # 개발 서버
+uvicorn app.main:app --host 0.0.0.0 --port 8000     # 운영 예시
+python -m compileall app                            # 구문 검증
+```
 
-### 환경 변수 (`.env`)
+---
+
+## 4. 환경 변수 (`.env`)
 | 변수 | 설명 |
 | --- | --- |
-| `PROJECT_NAME` | FastAPI 문서/헬스에서 노출되는 이름 |
-| `API_PREFIX` | 모든 라우터 앞에 붙는 prefix (`/api`) |
-| `DATABASE_URL` | SQLAlchemy 연결 문자열 (기본 SQLite 파일) |
+| `PROJECT_NAME` | FastAPI 문서/헬스에서 사용되는 이름 |
+| `API_PREFIX` | 모든 라우터 prefix (기본 `/api`) |
+| `DATABASE_URL` | SQLAlchemy 연결 문자열 |
 | `GEMINI_MODEL` | 사용할 Gemini 모델 ID (기본 `gemini-2.0-flash`) |
-| `GEMINI_API_KEY` | Google Generative AI API 키 (**선택사항**) |
+| `GEMINI_API_KEY` | Google Generative AI API 키 (없으면 룰 기반으로 동작) |
 
-### LLM 활성화
+키 발급: https://aistudio.google.com/app/apikey
 
-`GEMINI_API_KEY`를 설정하면 LLM 기반 분석 경로가 활성화됩니다:
-- **리포트에 `emotionsDetailed`와 `moodTimeline` 필드 포함** (상세한 감정 분석 및 시간대별 기분 변화)
-- 더 정확하고 풍부한 인사이트와 표현 제안
+---
 
-`GEMINI_API_KEY`가 설정되지 않은 경우:
-- **시스템은 자동으로 규칙 기반 분석 경로로 전환됩니다** (에러 없이 정상 작동)
-- 기본 필드만 제공 (`summary`, `keyInsights`, `suggestedPhrases` 등)
+## 5. LLM 활성화 동작
+- `GEMINI_API_KEY` **존재**: LLM 경로 사용 → `emotionsDetailed`, `moodTimeline` 등 확장 필드 포함, 보다 풍부한 인사이트 제공
+- `GEMINI_API_KEY` **없음**: 자동으로 규칙 기반 fallback → 핵심 필드(`summary`, `keyInsights`, `suggestedPhrases` 등)만 반환하지만 서비스는 정상 동작
 
-Google AI Studio에서 API 키를 발급받으려면: https://aistudio.google.com/app/apikey
+모든 LangChain 체인은 `prompt → model → parser` 패턴이므로 새로운 분석을 추가할 때도 동일한 형태를 따르면 됩니다.
 
-모든 LangChain 체인은 `prompt | model | parser` 패턴으로 구성되어 있으므로, 새로운 분석/대화 체인을 추가할 때도 동일한 형태를 유지하면 됨.
+---
 
-## 디렉터리 구조
-```
-app/
-├── api/            # FastAPI 라우터와 DI 구성요소
-├── core/           # 설정 + 보안 유틸
-├── db/             # SQLAlchemy 엔진/세션/베이스
-├── models/         # ORM 모델
-├── repositories/   # 데이터 액세스 계층
-├── schemas/        # Pydantic DTO
-└── services/       # LangChain 기반 Gemini 서비스
-```
+## 6. Reflection Reporting 상세
 
-## 자주 쓰는 명령
-```bash
-# 개발 모드
-uvicorn app.main:app --reload
+### 6.1 Emotion Taxonomy (16개 고정 라벨)
+| 라벨 | 영어 | 극성 |
+| ---- | ---- | ---- |
+| 불안 | Anxiety | Negative |
+| 당황 | Embarrassment | Negative |
+| 화남 | Anger | Negative |
+| 슬픔 | Sadness | Negative |
+| 기쁨 | Joy | Positive |
+| 죄책감 | Guilt | Negative |
+| 수치심 | Shame | Negative |
+| 안도 | Relief | Positive |
+| 기대 | Expectation | Positive |
+| 좌절 | Frustration | Negative |
+| 실망 | Disappointment | Negative |
+| 긴장 | Tension | Neutral |
+| 혼란 | Confusion | Neutral |
+| 짜증 | Irritation | Negative |
+| 무력감 | Helplessness | Negative |
+| 흥분 | Excitement | Positive |
 
-# 운영 모드 예시
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+대표적인 동의어 정규화: 걱정/초조 → 불안, 부끄러움 → 수치심, 짜증남 → 짜증, 분노 → 화남, 희열/즐거움 → 기쁨 등.
 
-# 구문 검증
-python -m compileall app
-```
+### 6.2 반환 필드
+| 구분 | 필드 | 설명 |
+| --- | --- | --- |
+| **핵심 필드 (항상 포함)** | `summary`, `keyInsights`, `suggestedPhrases`, `emotions`, `decisionPoints`, `actionItems`, `confidence` | 1~3문장 요약, 인사이트/표현 2~5개, 감정 1~3개, 액션 최대 10개 |
+| **확장 필드 (LLM 활성 시)** | `emotionsDetailed`, `moodTimeline` | 감정별 점수·근거, 시간대별 감정 흐름 |
 
-## 제공 중인 API
-- `GET /api/health/live` : 라이브니스 체크
-- `GET /api/health/ready` : 서비스 버전과 사용 중인 Gemini 모델 확인
-- `POST /api/reflections/summary` : 상황 정보를 입력받아 요약 · 핵심 인사이트 · 추천 표현 JSON 생성
-- `POST /api/reflections/reports` : 세션 리포트 생성 및 저장 (Markdown + JSON)
-- `GET /api/reflections/reports/{reportId}` : 리포트 조회 (JSON/Markdown 형식 지원)
-- `POST /api/reflections/chat` : 페르소나 정보와 대화 로그를 기반으로 시뮬레이션 대화 답변 생성
-- `POST /api/users` / `GET /api/users` / `GET /api/users/{id}` : 기본 사용자 CRUD (데모용)
+### 6.3 주요 엔드포인트
+- `POST /api/reflections/summary` : 상황을 입력하면 즉시 리포트 JSON을 반환 (저장 X)
+- `POST /api/reflections/reports` : 세션 ID 기준으로 리포트를 생성·DB 저장 (Markdown + JSON)
+- `GET /api/reflections/reports/{id}` : 저장된 리포트 조회 (`?format=md` 지원)
+- `POST /api/reflections/chat` : 시뮬레이션 대화 메시지에 대한 AI 응답 반환
 
-자세한 리포트 기능 문서는 [docs/reporting.md](docs/reporting.md)를 참고하세요.
-
-새로운 리소스는 `app/api/routes`에 라우터를 추가하고, 내부 로직은 `services/` 혹은 `repositories/`에 분리하면 됨.
-
-### 회고 요약 API 예시
-```http
-POST /api/reflections/summary
-Content-Type: application/json
-
+요약 요청 예시:
+```json
 {
   "whatHappened": "회의에서 의견 충돌이 있었다",
   "emotions": ["불안", "분노"],
@@ -98,73 +116,64 @@ Content-Type: application/json
 }
 ```
 
-정상 응답:
+응답 예시:
 ```json
 {
-  "summary": "두 사람이 의견 충돌로 갈등했지만, 관계 회복을 바라고 있습니다.",
+  "summary": "두 사람이 의견 충돌로 갈등했지만 관계 회복을 원합니다.",
   "keyInsights": [
     "즉각적인 방어 반응이 갈등을 키웠습니다.",
-    "사과를 미룬 것에 대한 아쉬움이 관계 회복 욕구로 이어집니다."
+    "사과를 미루면서 아쉬움이 커졌습니다."
   ],
   "suggestedPhrases": [
     "지금 생각해보니 감정이 앞섰던 것 같아.",
-    "우리 관계를 지키고 싶어. 다시 얘기해볼 수 있을까?"
+    "우리 관계가 소중해서 다시 이야기 나누고 싶어."
   ]
 }
 ```
 
-### 시뮬레이션 대화 API 예시
-```http
-POST /api/reflections/chat
-Content-Type: application/json
+시뮬레이션 요청 (`/chat`)에서는 `personaName`, `personaTone`, `conversation`, `message` 필드를 포함해 AI가 역할극 형태로 답변합니다.
 
-{
-  "whatHappened": "...",
-  "emotions": ["불안"],
-  "whatYouDid": "즉각 반박했다",
-  "howYouWishItHadGone": "차분하게 설명하고 싶었다",
-  "personaName": "팀장님",
-  "personaTone": "차분한",
-  "personaPersonality": "공감적인 리더",
-  "conversation": [
-    {"sender": "user", "text": "그때 너무 놀랐어요."},
-    {"sender": "ai", "text": "나도 당황했지만 너를 미워한 건 아니야."}
-  ],
-  "message": "제가 왜 그렇게 말했는지 모르겠어요."
-}
-```
+---
 
-→ `{"reply": "..."}` 형태로 반환되며, Gemini 키가 없으면 503, 그 외 예외는 500으로 응답.
+## 7. 검증 및 후처리
+- **Label Normalization**: 동의어→정규 라벨, taxonomy 이외 단어는 제거
+- **Evidence Validation**: LLM이 제시한 근거 텍스트가 실제 본문에 존재하는지 검사 (200자 제한)
+- **Score Clamping**: 모든 점수를 0~1 사이로 제한, 잘못된 값은 0.5로 대체
+- **Timeline Limiting**: 최대 8개 구간, 구간당 감정 2개까지만 허용
+- LLM 실패·JSON 파싱 실패 시 자동으로 규칙 기반 로직으로 전환
 
-## 빠른 테스트 (Smoke Tests)
+---
 
-서버 시작 후 다음 명령으로 주요 엔드포인트를 테스트할 수 있습니다:
-
+## 8. 테스트 & Smoke 테스트
 ```bash
-# 1. 헬스 체크
-curl http://localhost:8000/api/health/live
+# 1) 헬스 체크
+curl http://localhost:8000/api/health
 
-# 2. 회고 요약 생성
+# 2) 회고 요약
 curl -X POST http://localhost:8000/api/reflections/summary \
   -H "Content-Type: application/json" \
-  -d '{
-    "whatHappened": "회의에서 충돌",
-    "whatYouDid": "즉각 반박",
-    "howYouWishItHadGone": "차분히 설명"
-  }'
+  -d '{"whatHappened":"회의에서 충돌","whatYouDid":"즉각 반박","howYouWishItHadGone":"차분히 설명"}'
 
-# 3. 리포트 생성 (sessionId는 임의의 숫자)
+# 3) 리포트 생성
 curl -X POST http://localhost:8000/api/reflections/reports \
   -H "Content-Type: application/json" \
-  -d '{"sessionId": 123}'
+  -d '{"sessionId":123}'
 
-# 4. 리포트 조회 (JSON)
+# 4) 리포트 조회 (JSON)
 curl http://localhost:8000/api/reflections/reports/1
 
-# 5. 리포트 조회 (Markdown, Content-Type: text/markdown 확인)
+# 5) 리포트 조회 (Markdown)
 curl -i http://localhost:8000/api/reflections/reports/1?format=md
 ```
 
-**LLM 활성화 상태 확인:**
-- `GEMINI_API_KEY`가 설정된 경우: 리포트 응답에 `emotionsDetailed`와 `moodTimeline` 필드 포함
-- `GEMINI_API_KEY`가 없는 경우: 기본 필드만 포함하며 에러 없이 정상 작동
+LLM 활성/비활성 모두 위 요청을 반복해 보며 `emotionsDetailed`, `moodTimeline` 포함 여부가 토글되는지 확인하면 됩니다.
+
+---
+
+## 9. 향후 개선 아이디어
+1. **비동기 처리**: Redis/RQ 등을 통한 백그라운드 리포트 생성 및 상태 조회
+2. **고급 검색**: 감정·날짜·세션 필터링, JSONB 기반 검색
+3. **스피커 단위 분석**: 화자별 감정 흐름, 대화 역동성 분석
+4. **장기 추세**: 사용자별 감정 패턴, 대시보드, 비교 분석
+
+이 문서를 기반으로 백엔드 구조를 이해하고 필요한 확장 작업을 진행하면 됩니다.

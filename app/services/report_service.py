@@ -1,7 +1,7 @@
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.services.langchain import LangChainService
+from app.services import LangChainService
 
 
 def _fetch_session_text(db: Session, session_id: str | int) -> str:

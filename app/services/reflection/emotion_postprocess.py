@@ -4,7 +4,7 @@ Normalizes labels, validates evidence, and cleans up LLM outputs.
 """
 
 from typing import List, Dict, Any, Optional, Tuple
-from app.services.emotion_taxonomy import (
+from .emotion_taxonomy import (
     EMOTION_TAXONOMY_KO,
     EMOTION_SYNONYMS,
     DEFAULT_POLARITY,

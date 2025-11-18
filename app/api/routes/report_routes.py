@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.services.langchain import generate_report_for_session
+from app.services.report_service import generate_report_for_session
 
 router = APIRouter()
 

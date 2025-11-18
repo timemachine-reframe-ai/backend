@@ -6,7 +6,7 @@ from app.schemas.reflection import (
     ReflectionChatRequest,
     ReflectionChatResponse,
 )
-from app.services.langchain import LangChainService
+from app.services import LangChainService
 
 router = APIRouter()
 

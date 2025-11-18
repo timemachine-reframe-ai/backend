@@ -2,8 +2,8 @@ import json
 import logging
 from typing import List, Mapping, Optional, Any
 
-from app.services.prompt_templates import SUMMARY_JSON_PROMPT
-from app.services.emotion_postprocess import postprocess_emotions, clamp_mood_timeline
+from .prompt_templates import SUMMARY_JSON_PROMPT
+from .emotion_postprocess import postprocess_emotions, clamp_mood_timeline
 
 logger = logging.getLogger(__name__)
 

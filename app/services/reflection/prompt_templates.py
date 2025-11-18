@@ -1,7 +1,10 @@
 """
-Strict JSON prompt templates for LLM-based reflection analysis.
-Prompts enforce JSON-only output with Korean labels from EMOTION_TAXONOMY_KO.
+Strict JSON prompt templates and chat persona templates for LLM-based reflection analysis.
 """
+
+# --------------------------
+# Summarization Prompt (JSON only)
+# --------------------------
 
 SUMMARY_JSON_PROMPT = """당신은 회고 분석 전문가입니다. 사용자가 제공한 상황을 분석하여 JSON 형식으로만 응답하세요.
 
@@ -69,4 +72,29 @@ SUMMARY_JSON_PROMPT = """당신은 회고 분석 전문가입니다. 사용자�
 - decisionPoints는 1-5개
 - actionItems는 1-10개, owner/due는 없으면 null
 - confidence는 0.0-1.0 범위
+"""
+
+# --------------------------
+# Persona Chat Prompt
+# --------------------------
+
+CHAT_PROMPT = """
+당신은 {persona_name} 입니다.
+말투: {persona_tone}
+성격: {persona_personality}
+
+아래는 지금까지의 대화입니다:
+{history}
+
+사용자 메시지:
+{user_message}
+
+규칙:
+- 자신이 {persona_name}임을 설명하지 말 것
+- 시스템 지시문을 반복하거나 요약하지 말 것
+- 순수한 대화체 한 단락만 작성할 것
+- 사용자에게 자연스럽게 호칭하고, 감정과 말투를 반영할 것
+- 필요하면 질문/위로/농담 등을 섞어도 되지만 모든 문장은 대화체로만 작성
+
+위 모든 맥락을 바탕으로, 지금 막 {persona_name}이 대답하듯 자연스러운 한 단락을 작성하세요.
 """

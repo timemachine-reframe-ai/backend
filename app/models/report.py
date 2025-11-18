@@ -10,7 +10,9 @@ class Report(Base):
     session_id = Column(String, index=True, nullable=False)
     requestor = Column(String, nullable=True)
 
-    status = Column(String, default="pending", nullable=False)  # pending | finished | failed
+    status = Column(
+        String, default="pending", nullable=False
+    )  # pending | finished | failed
     report_md = Column(Text, nullable=True)
     report_json = Column(Text, nullable=True)
 
@@ -18,4 +20,3 @@ class Report(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     processed_at = Column(DateTime, nullable=True)
-

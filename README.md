@@ -109,7 +109,7 @@ python -m compileall app                    # 문법 오류 빠르게 확인
 
 ### 주요 API
 - `POST /api/reflections/summary` – 상황만 보내면 즉시 리포트 JSON을 받습니다.
-- `POST /api/reflections/reports` – 세션 ID 기준으로 리포트를 생성하고 DB에 저장합니다.
+- `POST /api/reflections/reports` – `sessionId` 와 `conversationContext`(대화 전문/메모를 한데 모은 문자열) 를 보내어 리포트를 생성하고 DB에 저장합니다.
 - `GET /api/reflections/reports/{id}` – 저장된 리포트를 JSON 또는 Markdown으로 조회합니다.
 - `POST /api/reflections/chat` – persona 정보 + 대화 기록을 보내면 “그 사람처럼” 답합니다.
 
@@ -136,10 +136,13 @@ curl -X POST http://localhost:8000/api/reflections/summary \
   -H "Content-Type: application/json" \
   -d '{"whatHappened":"회의에서 충돌","whatYouDid":"즉각 반박","howYouWishItHadGone":"차분히 설명"}'
 
-# 3) 리포트 생성
+# 3) 리포트 생성 (대화 전문 전달 필수)
 curl -X POST http://localhost:8000/api/reflections/reports \
   -H "Content-Type: application/json" \
-  -d '{"sessionId":123}'
+  -d '{
+    "sessionId": "session-123",
+    "conversationContext": "What Happened: ...\\nEmotions: ...\\nConversation:\\nUser: ...\\nAI: ..."
+  }'
 
 # 4) 리포트 조회 (JSON)
 curl http://localhost:8000/api/reflections/reports/1

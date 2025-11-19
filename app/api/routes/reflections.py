@@ -6,7 +6,7 @@ from app.schemas.reflection import (
     ReflectionChatRequest,
     ReflectionChatResponse,
 )
-from app.services import LangChainService
+from app.services import ChatService
 
 router = APIRouter()
 
@@ -16,7 +16,7 @@ router = APIRouter()
 )
 def summarize_reflection(
     payload: ReflectionSummaryRequest,
-    service: LangChainService = Depends(get_langchain_service),
+    service: ChatService = Depends(get_langchain_service),
 ):
     try:
         summary = service.summarize_reflection(payload.to_chain_payload())
@@ -37,7 +37,7 @@ def summarize_reflection(
 )
 def chat_reflection(
     payload: ReflectionChatRequest,
-    service: LangChainService = Depends(get_langchain_service),
+    service: ChatService = Depends(get_langchain_service),
 ):
     try:
         reply = service.generate_chat_reply(payload.to_chat_payload())

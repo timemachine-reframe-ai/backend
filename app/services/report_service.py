@@ -1,7 +1,7 @@
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.services import LangChainService
+from app.services import ChatService
 
 
 def _fetch_session_text(db: Session, session_id: str | int) -> str:
@@ -15,13 +15,13 @@ def _fetch_session_text(db: Session, session_id: str | int) -> str:
 def generate_report_for_session(
     db: Session,
     session_id: str | int,
-    service: LangChainService,
+    service: ChatService,
     requestor: Optional[str] = None,
 ) -> dict:
     """
     동기 리포트 생성:
     - 세션 텍스트 수집
-    - LangChainService summarize_reflection 호출
+    - ChatService summarize_reflection 호출
     - Markdown + JSON 구성
     """
     session_text = _fetch_session_text(db, session_id)

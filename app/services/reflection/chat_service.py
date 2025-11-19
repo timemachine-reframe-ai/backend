@@ -8,7 +8,7 @@ from .emotion_postprocess import postprocess_emotions, clamp_mood_timeline
 logger = logging.getLogger(__name__)
 
 
-class LangChainService:
+class ChatService:
     """
     LangChain 기반 Reflection/Chat 서비스.
     - summarize_reflection: JSON 기반 회고 분석
@@ -285,15 +285,25 @@ class LangChainService:
                 if isinstance(m, dict)
             )
 
-            prompt = CHAT_PROMPT.format(
+            system_prompt = CHAT_PROMPT.format(
                 persona_name=payload.get("personaName", ""),
                 persona_tone=payload.get("personaTone", ""),
                 persona_personality=payload.get("personaPersonality", ""),
-                history=history,
-                user_message=user_msg,
             )
+            user_prompt = f"""
+지금까지의 대화:
+{history}
 
-            response = self.llm.invoke(prompt)
+사용자 메시지:
+{user_msg}
+"""
+
+            response = self.llm.invoke(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
+            )
 
             if hasattr(response, "content"):
                 return response.content

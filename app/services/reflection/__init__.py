@@ -1,3 +1,3 @@
-from .langchain_service import LangChainService
+from .chat_service import ChatService
 
-__all__ = ["LangChainService"]
+__all__ = ["ChatService"]

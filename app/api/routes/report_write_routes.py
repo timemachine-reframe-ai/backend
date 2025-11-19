@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, get_langchain_service
-from app.services import LangChainService
+from app.services import ChatService
 from app.services.report_service import generate_report_for_session
 from app.models.report import Report
 
@@ -15,7 +15,7 @@ router = APIRouter()
 def create_report(
     body: dict,
     db: Session = Depends(get_db),
-    service: LangChainService = Depends(get_langchain_service),
+    service: ChatService = Depends(get_langchain_service),
 ):
     session_id = body.get("sessionId")
     if session_id is None:

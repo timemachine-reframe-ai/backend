@@ -17,18 +17,26 @@
 
 ```
 app/
-├── api/          FastAPI 라우터와 의존성 주입
-├── core/         환경설정, 보안 유틸
-├── db/           SQLAlchemy Base, 세션
-├── models/       ORM 모델
-├── repositories/ DB 접근 로직
-├── schemas/      요청/응답 Pydantic 모델
+├── api/
+│   ├── routes/           → reflections, reports, auth 등 FastAPI 엔드포인트
+│   └── dependencies.py   → DB 세션, ChatService, 설정 주입
+├── core/                 → 환경변수 로더(get_settings), 보안 유틸
+├── db/
+│   ├── base.py           → SQLAlchemy Base 선언
+│   └── session.py        → 엔진/세션 팩토리
+├── models/               → SQLAlchemy ORM 모델(Report, User 등)
+├── repositories/         → 데이터베이스 CRUD 래퍼
+├── schemas/              → Pydantic 요청/응답 모델
 └── services/
-    ├── reflection/   요약·감정·대화 LLM 로직
-    └── report_service.py  리포트 생성 헬퍼
+    ├── reflection/
+    │   ├── chat_service.py   → ChatService (요약·대화 로직)
+    │   ├── prompt_templates.py
+    │   ├── emotion_postprocess.py / emotion_taxonomy.py
+    │   └── __init__.py
+    └── report_service.py     → 세션 텍스트를 요약하여 리포트 저장
 ```
 
-폴더 이름을 보면 어디에 어떤 코드를 넣어야 할지 바로 알 수 있습니다.
+각 폴더에 역할 주석을 붙여 두었으니, 새로운 기능을 어디에 넣어야 할지 바로 파악할 수 있습니다.
 
 ---
 

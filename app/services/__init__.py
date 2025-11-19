@@ -1,3 +1,3 @@
-from .reflection.langchain_service import LangChainService
+from .reflection.chat_service import ChatService
 
-__all__ = ["LangChainService"]
+__all__ = ["ChatService"]

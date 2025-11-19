@@ -58,7 +58,7 @@ app/
    ```bash
    uvicorn app.main:app --reload
    ```
-4. 헬스 체크: <http://localhost:8000/api/health>
+4. 헬스 체크: <http://localhost:8000/health>
 
 자주 쓰는 명령
 ```bash
@@ -129,7 +129,7 @@ python -m compileall app                    # 문법 오류 빠르게 확인
 
 ```bash
 # 1) 헬스 체크
-curl http://localhost:8000/api/health
+curl http://localhost:8000/health
 
 # 2) 요약 생성
 curl -X POST http://localhost:8000/api/reflections/summary \

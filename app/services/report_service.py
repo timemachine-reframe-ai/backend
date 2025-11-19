@@ -4,29 +4,24 @@ from sqlalchemy.orm import Session
 from app.services import ChatService
 
 
-def _fetch_session_text(db: Session, session_id: str | int) -> str:
-    """
-    TODO: 실제 Session 모델/메시지에서 텍스트를 조합.
-    현재는 임시 문자열 반환.
-    """
-    return f"세션 {session_id} 회의에서 논의된 주요 내용 예시입니다."
-
-
 def generate_report_for_session(
     db: Session,
     session_id: str | int,
+    conversation_text: str,
     service: ChatService,
     requestor: Optional[str] = None,
 ) -> dict:
     """
     동기 리포트 생성:
-    - 세션 텍스트 수집
+    - 프런트에서 전달한 대화 전문을 사용
     - ChatService summarize_reflection 호출
     - Markdown + JSON 구성
     """
-    session_text = _fetch_session_text(db, session_id)
+    if not conversation_text.strip():
+        raise ValueError("conversation_text must not be empty")
+
     payload = {
-        "what_happened": session_text,
+        "what_happened": conversation_text,
         "emotions": [],  # 자동 감정 추출 유도
         "what_you_did": "",
         "desired_outcome": "",

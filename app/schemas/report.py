@@ -1,10 +1,14 @@
-from pydantic import BaseModel
 from typing import List, Optional, Any
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
 
-class ReportRequest(BaseModel):
+class ReportCreateRequest(BaseModel):
+    session_id: str = Field(..., alias="sessionId")
     requestor: Optional[str] = None
+    conversation_context: str = Field(..., alias="conversationContext")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Alternative(BaseModel):
@@ -35,8 +39,9 @@ class ReportSummary(BaseModel):
 
 class ReportResponse(BaseModel):
     report_id: int
-    session_id: int
+    session_id: str
     status: str
+    failure_reason: Optional[str] = None
     report_md: Optional[str]
     report_json: Optional[Any]
     created_at: datetime

@@ -5,7 +5,7 @@ from app.api.routes.reflections import router as reflections_router
 from app.api.routes.report_write_routes import router as report_write_router
 from app.api.routes.report_read_routes import router as report_read_router
 
-from app.db.session import engine
+from app.db.session import engine, Base
 from app.startup.ensure_schema import ensure_reports_failure_reason_column
 
 app = FastAPI(title="Reflection Reports API", version="1.0.0")
@@ -28,6 +28,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _startup():
+    Base.metadata.create_all(bind=engine)
     ensure_reports_failure_reason_column(engine)
 
 

@@ -272,30 +272,65 @@ class ChatService:
         """
         logger.info(f"[CHAT_PAYLOAD] {payload}")
 
-        user_msg = payload.get("message") or ""
+        user_msg = str(payload.get("message") or "").strip()
 
         if not self.llm:
             return f"반영해 볼게요: {user_msg}"
 
         try:
+            persona_name = str(payload.get("persona_name") or payload.get("personaName") or "상대방").strip()
+            persona_tone = str(payload.get("persona_tone") or payload.get("personaTone") or "평범한 말투").strip()
+            persona_personality = str(
+                payload.get("persona_personality") or payload.get("personaPersonality") or "평범한 성격"
+            ).strip()
+            relationship = str(payload.get("relationship") or "지인").strip()
+
+            situation_parts = []
+            what_happened = str(payload.get("what_happened") or payload.get("situation") or "").strip()
+            if what_happened:
+                situation_parts.append(f"사용자의 기록(사건): {what_happened}")
+            what_you_did = str(payload.get("what_you_did") or "").strip()
+            if what_you_did:
+                situation_parts.append(f"사용자가 한 행동: {what_you_did}")
+            emotions = payload.get("emotions") or []
+            if emotions:
+                situation_parts.append(f"당시 사용자의 감정: {', '.join(emotions)}")
+            situation_text = "\n".join(situation_parts) or "상황 정보가 충분히 제공되지 않았습니다."
+
+            desired_outcome = str(payload.get("desired_outcome") or payload.get("direction") or "").strip()
+            if not desired_outcome:
+                desired_outcome = "사용자가 원하는 방향에 대해 특별한 지시가 없습니다."
+
             history_list = payload.get("conversation", [])
-            history = "\n".join(
-                f"{m.get('sender')}: {m.get('text')}"
-                for m in history_list
-                if isinstance(m, dict)
-            )
+            history_lines = []
+            if isinstance(history_list, list):
+                for message in history_list:
+                    if not isinstance(message, dict):
+                        continue
+                    sender = message.get("sender")
+                    text = str(message.get("text") or "").strip()
+                    if not text:
+                        continue
+                    speaker = "나(User)" if sender == "user" else persona_name
+                    history_lines.append(f"{speaker}: {text}")
+            history = "\n".join(history_lines) or "대화 기록 없음"
 
             system_prompt = CHAT_PROMPT.format(
-                persona_name=payload.get("personaName", ""),
-                persona_tone=payload.get("personaTone", ""),
-                persona_personality=payload.get("personaPersonality", ""),
+                persona_name=persona_name,
+                persona_tone=persona_tone,
+                persona_personality=persona_personality,
+                relationship=relationship,
+                situation=situation_text,
+                direction=desired_outcome,
             )
             user_prompt = f"""
-지금까지의 대화:
+--- 이전 대화 기록 ---
 {history}
 
-사용자 메시지:
-{user_msg}
+--- 현재 메시지 ---
+나(User): {user_msg}
+
+(위 맥락을 고려하여 {persona_name}의 입장에서 답변하세요.)
 """
 
             response = self.llm.invoke(
@@ -306,10 +341,10 @@ class ChatService:
             )
 
             if hasattr(response, "content"):
-                return response.content
+                return str(response.content).strip()
 
-            return str(response)
+            return str(response).strip()
 
         except Exception as e:
             logger.warning(f"Chat reply LLM invocation failed: {e}")
-            return f"반영해 볼게요: {user_msg}"
+            return "잠시 생각이 정리되지 않네요. 다시 말씀해 줄래요?"

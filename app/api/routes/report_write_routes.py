@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db, get_langchain_service
+from app.api.dependencies import get_current_user, get_db, get_langchain_service
 from app.services import ChatService
 from app.services.report_service import generate_report_for_session
 from app.models.report import Report
@@ -21,6 +21,7 @@ def create_report(
     payload: ReportCreateRequest,
     db: Session = Depends(get_db),
     service: ChatService = Depends(get_langchain_service),
+    current_user=Depends(get_current_user),
 ):
     session_id = payload.session_id
     conversation_context = payload.conversation_context.strip()
@@ -34,6 +35,7 @@ def create_report(
     report = Report(
         session_id=str(session_id),
         requestor=requestor,
+        user_id=current_user.id,
         status="pending",
         created_at=datetime.utcnow(),
     )

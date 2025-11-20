@@ -8,7 +8,7 @@ from app.api.routes.users_routes import router as users_router
 from app.api.routes.auth_routes import router as auth_router
 
 from app.db.session import engine, Base
-from app.startup.ensure_schema import ensure_reports_failure_reason_column
+from app.startup.ensure_schema import ensure_reports_failure_reason_column, ensure_reports_user_id_column
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -35,6 +35,7 @@ app.add_middleware(
 def _startup():
     Base.metadata.create_all(bind=engine)
     ensure_reports_failure_reason_column(engine)
+    ensure_reports_user_id_column(engine)
 
 
 @app.get("/health")

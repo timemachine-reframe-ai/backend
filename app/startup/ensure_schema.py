@@ -27,3 +27,27 @@ def ensure_reports_failure_reason_column(engine: Engine) -> None:
             conn.execute(text(sql))
     except Exception:
         pass
+
+
+def ensure_reports_user_id_column(engine: Engine) -> None:
+    """
+    reports.user_id(owner) 없으면 런타임에 안전하게 추가한다.
+    """
+    insp = inspect(engine)
+    try:
+        cols = [c["name"] for c in insp.get_columns("reports")]
+    except Exception:
+        return
+
+    if "user_id" in cols:
+        return
+
+    dialect = engine.dialect.name
+    sql = "ALTER TABLE reports ADD COLUMN user_id INTEGER"
+    if dialect == "mysql":
+        sql = "ALTER TABLE reports ADD COLUMN user_id INTEGER NULL"
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(sql))
+    except Exception:
+        pass

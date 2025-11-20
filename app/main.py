@@ -7,6 +7,9 @@ from app.api.routes.report_read_routes import router as report_read_router
 
 from app.db.session import engine, Base
 from app.startup.ensure_schema import ensure_reports_failure_reason_column
+from app.core.config import get_settings
+
+settings = get_settings()
 
 app = FastAPI(title="Reflection Reports API", version="1.0.0")
 
@@ -16,10 +19,7 @@ app.include_router(report_read_router, prefix="/api/reflections", tags=["reports
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=settings.CORS_ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

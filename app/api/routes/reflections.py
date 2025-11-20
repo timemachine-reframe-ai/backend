@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.api.dependencies import get_langchain_service
+from app.api.dependencies import get_langchain_service, get_current_user
 from app.schemas.reflection import (
     ReflectionSummaryRequest,
     ReflectionSummaryResponse,
@@ -17,6 +17,7 @@ router = APIRouter()
 def summarize_reflection(
     payload: ReflectionSummaryRequest,
     service: ChatService = Depends(get_langchain_service),
+    _current_user=Depends(get_current_user),
 ):
     try:
         summary = service.summarize_reflection(payload.to_chain_payload())
@@ -38,6 +39,7 @@ def summarize_reflection(
 def chat_reflection(
     payload: ReflectionChatRequest,
     service: ChatService = Depends(get_langchain_service),
+    _current_user=Depends(get_current_user),
 ):
     try:
         reply = service.generate_chat_reply(payload.to_chat_payload())

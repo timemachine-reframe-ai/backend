@@ -86,3 +86,32 @@ def create_report(
         report_json=generated["report_json"],
         report_md=generated["report_md"],
     )
+
+
+@router.delete("/{session_id}", summary="리포트 삭제")
+def delete_report(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    # 1. Try match by session_id
+    report = (
+        db.query(Report)
+        .filter(Report.session_id == session_id, Report.user_id == current_user.id)
+        .first()
+    )
+
+    # 2. If not found and session_id looks like an int, try report_id
+    if not report and session_id.isdigit():
+        report = (
+            db.query(Report)
+            .filter(Report.report_id == int(session_id), Report.user_id == current_user.id)
+            .first()
+        )
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    db.delete(report)
+    db.commit()
+    return {"ok": True}

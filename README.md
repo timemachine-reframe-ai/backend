@@ -1,154 +1,208 @@
-# TIMEMACHINE AI – 백엔드
+# 🕰️ TIMEMACHINE AI – 백엔드
 
-이 폴더는 “AI 상담사” 역할을 하는 FastAPI 서버입니다. 사용자가 겪은 상황을 보내면 요약 리포트를 만들어 주고, 가상의 인물(persona)처럼 대화를 이어 줍니다. 프런트엔드는 `/api/reflections/*` 라우트만 호출하면 되고, 모델 키 관리·프롬프트 작성·후처리는 모두 여기서 처리합니다.
-
----
-
-## 1. 우리는 어떤 기술을 쓰나요?
-
-- **FastAPI + Uvicorn** – 빠르게 REST API를 만들고 CORS도 처리합니다.
-- **SQLAlchemy + SQLite** – 사용자와 리포트를 파일 DB에 저장합니다.
-- **Pydantic v2** – API 스키마와 환경 설정을 깔끔하게 관리합니다.
-- **LangChain + langchain-google-genai** – Gemini 2.5 Flash 모델을 안전하게 호출합니다.
+FastAPI 기반 AI 상담 서버입니다. **13,234개의 실제 상담 데이터**를 RAG로 활용하여 전문 심리상담사 같은 조언을 생성합니다.
 
 ---
 
-## 2. 폴더 한눈에 보기
+## 📁 프로젝트 구조
 
 ```
-app/
-├── api/
-│   ├── routes/           → reflections, reports, auth 등 FastAPI 엔드포인트
-│   └── dependencies.py   → DB 세션, ChatService, 설정 주입
-├── core/                 → 환경변수 로더(get_settings), 보안 유틸
-├── db/
-│   ├── base.py           → SQLAlchemy Base 선언
-│   └── session.py        → 엔진/세션 팩토리
-├── models/               → SQLAlchemy ORM 모델(Report, User 등)
-├── repositories/         → 데이터베이스 CRUD 래퍼
-├── schemas/              → Pydantic 요청/응답 모델
-└── services/
-    ├── reflection/
-    │   ├── chat_service.py   → ChatService (요약·대화 로직)
-    │   ├── prompt_templates.py
-    │   ├── emotion_postprocess.py / emotion_taxonomy.py
-    │   └── __init__.py
-    └── report_service.py     → 세션 텍스트를 요약하여 리포트 저장
-```
-
-각 폴더에 역할 주석을 붙여 두었으니, 새로운 기능을 어디에 넣어야 할지 바로 파악할 수 있습니다.
-
----
-
-## 3. 로컬에서 바로 돌려보기
-
-1. 파이썬 가상환경 만들기
-   ```bash
-   cd backend
-   python3 -m venv .venv
-   source .venv/bin/activate   # Windows는 .venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-2. 환경 변수 채우기
-   ```bash
-   cp .env.example .env
-   # GEMINI_API_KEY 를 발급받아 넣으면 LLM을 바로 사용할 수 있습니다.
-   ```
-3. 서버 실행
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-4. 헬스 체크: <http://localhost:8000/health>
-
-자주 쓰는 명령
-```bash
-uvicorn app.main:app --reload               # 개발 서버
-uvicorn app.main:app --host 0.0.0.0 --port 8000   # 운영 예시
-python -m compileall app                    # 문법 오류 빠르게 확인
+backend/
+├── app/
+│   ├── api/routes/              # FastAPI 엔드포인트
+│   │   ├── reflections.py       # /api/reflections/chat, summary
+│   │   ├── report_write_routes.py  # /api/reflections/reports (생성)
+│   │   └── report_read_routes.py   # /api/reflections/reports (조회)
+│   │
+│   ├── services/
+│   │   ├── reflection/
+│   │   │   ├── chat_service.py      # 💬 채팅 + RAG 연동
+│   │   │   └── prompt_templates.py  # 🎭 프롬프트 템플릿
+│   │   ├── report_service.py        # 📊 리포트 생성
+│   │   └── rag_service.py           # 🔍 RAG 서비스 (NEW)
+│   │
+│   ├── data/
+│   │   ├── counsel_data.jsonl       # 📄 상담 데이터 (13,234개)
+│   │   └── chroma_db/               # 🗄️ 벡터 DB (52MB)
+│   │
+│   ├── scripts/
+│   │   └── build_vector_db.py       # 벡터 DB 빌드 스크립트
+│   │
+│   ├── models/                  # SQLAlchemy ORM
+│   ├── schemas/                 # Pydantic 스키마
+│   ├── core/                    # 설정, 보안
+│   └── db/                      # DB 세션
+│
+├── requirements.txt
+└── .env
 ```
 
 ---
 
-## 4. `.env` 에 꼭 넣어야 할 것들
-
-| 이름 | 설명 |
-| --- | --- |
-| `PROJECT_NAME` | 자동 문서/헬스 체크에서 노출할 이름 |
-| `API_PREFIX` | 모든 라우터 앞에 붙는 경로 (기본 `/api`) |
-| `DATABASE_URL` | SQLAlchemy 연결 문자열 |
-| `GEMINI_MODEL` | 사용할 모델 ID (기본 `gemini-2.0-flash`) |
-| `GEMINI_API_KEY` | Google Generative AI 키. 없으면 규칙 기반으로만 동작 |
-
-키가 필요하면 [Google AI Studio](https://aistudio.google.com/app/apikey) 에서 발급받으세요.
-
----
-
-## 5. LLM을 켜면 뭐가 좋아지나요?
-
-- `GEMINI_API_KEY` 를 넣으면 LLM 경로가 활성화됩니다.
-  - 리포트에 `emotionsDetailed`, `moodTimeline` 같은 풍부한 필드가 추가되고,
-  - persona 대화가 실제 사람처럼 자연스러워집니다.
-- 키가 없어도 걱정 마세요. 시스템이 자동으로 규칙 기반 로직으로 전환합니다.
-
----
-
-## 6. 리포트/대화는 어떻게 만들어질까요?
-
-### 감정 라벨(고정 16개)
-불안, 당황, 화남, 슬픔, 기쁨, 죄책감, 수치심, 안도, 기대, 좌절, 실망, 긴장, 혼란, 짜증, 무력감, 흥분  
-(예: “걱정”이라고 적어도 자동으로 “불안”으로 정리됩니다.)
-
-### 응답 구조
-| 항목 | 설명 |
-| --- | --- |
-| `summary` | 1~3문장 요약 |
-| `keyInsights` | 핵심 인사이트 2~5개 |
-| `suggestedPhrases` | 추천 표현 2~5개 |
-| `emotions`, `decisionPoints`, `actionItems`, `confidence` | 감정·결정·할 일·신뢰도 |
-| `emotionsDetailed`, `moodTimeline` | LLM 활성 시 추가되는 상세 감정·감정 타임라인 |
-
-### 주요 API
-- `POST /api/reflections/summary` – 상황만 보내면 즉시 리포트 JSON을 받습니다.
-- `POST /api/reflections/reports` – `sessionId` 와 `conversationContext`(대화 전문/메모를 한데 모은 문자열) 를 보내어 리포트를 생성하고 DB에 저장합니다.
-- `GET /api/reflections/reports/{id}` – 저장된 리포트를 JSON 또는 Markdown으로 조회합니다.
-- `POST /api/reflections/chat` – persona 정보 + 대화 기록을 보내면 “그 사람처럼” 답합니다.
-
----
-
-## 7. 안전장치(후처리 로직)
-
-- LLM이 엉뚱한 감정을 내놓으면 taxonomy 규칙으로 정리
-- 근거 텍스트가 본문에 없으면 비워둠 (200자 제한)
-- score/vad 값은 0~1 범위로 강제
-- 타임라인은 최대 8개 구간, 구간당 감정 2개까지만 허용
-- LLM 호출 실패 시 규칙 기반 로직으로 자동 전환
-
----
-
-## 8. 바로 테스트해 보기
+## 🚀 빠른 시작
 
 ```bash
-# 1) 헬스 체크
+# 1. 가상환경 생성 및 활성화
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 2. 패키지 설치
+pip install -r requirements.txt
+
+# 3. 환경변수 설정
+cp .env.example .env
+# GEMINI_API_KEY 입력
+
+# 4. 벡터 DB 빌드 (최초 1회)
+python -m app.scripts.build_vector_db
+
+# 5. 서버 실행
+uvicorn app.main:app --reload
+```
+
+---
+
+## 🔍 RAG 시스템
+
+### 개요
+
+RAG(Retrieval Augmented Generation)를 통해 유사한 상담 사례를 검색하여 LLM 응답 품질을 향상시킵니다.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    RAG 동작 흐름                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1️⃣ 사용자 입력                                                 │
+│  "직장에서 상사에게 부당한 지적을 받았어요"                      │
+│                              │                                  │
+│                              ▼                                  │
+│  2️⃣ 벡터 임베딩 생성 (sentence-transformers)                   │
+│  [0.23, -0.15, 0.87, ...]                                       │
+│                              │                                  │
+│                              ▼                                  │
+│  3️⃣ ChromaDB 유사도 검색 (상위 3개)                            │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │ 📄 유사 사례 1: 회사에서 팀장이 부당하게 질책했을 때...    │  │
+│  │ 📄 유사 사례 2: 직장 내 갑질을 경험했을 때...              │  │
+│  │ 📄 유사 사례 3: 상사와의 갈등으로 스트레스를 받을 때...    │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                              │                                  │
+│                              ▼                                  │
+│  4️⃣ LLM에 컨텍스트로 전달 → 전문 상담사 조언 생성              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 상담 데이터 통계
+
+| 항목         | 값                                    |
+| ------------ | ------------------------------------- |
+| 총 레코드    | 13,234개                              |
+| 벡터 DB 크기 | 52MB                                  |
+| 임베딩 모델  | paraphrase-multilingual-MiniLM-L12-v2 |
+| 검색 결과    | 상위 3개                              |
+
+### 카테고리 분포
+
+```
+직장/취업 ████████████████████████░░░░░░  56% (7,432개)
+가족      ██████████░░░░░░░░░░░░░░░░░░░░  20% (2,649개)
+대인관계  █████░░░░░░░░░░░░░░░░░░░░░░░░░  13% (1,728개)
+연애      ███░░░░░░░░░░░░░░░░░░░░░░░░░░░   7% (893개)
+기타      █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   4% (532개)
+```
+
+### 데이터 구조
+
+```json
+{
+  "user_context": "직장에서 상사가 나에게만 업무를 몰아줘요",
+  "emotion": "두려움",
+  "category": "직장/취업",
+  "expert_solution": "지금 많이 힘드시겠어요...",
+  "psychological_rationale": "조직 공정성 이론에 따르면..."
+}
+```
+
+---
+
+## 📊 API 엔드포인트
+
+### 채팅 (시뮬레이션)
+
+```bash
+POST /api/reflections/chat
+```
+
+페르소나 기반 대화 응답 생성. RAG로 유사 상담 사례를 참고합니다.
+
+### 리포트 생성
+
+```bash
+POST /api/reflections/reports
+```
+
+대화 내용을 분석하여 리포트 생성. **심리상담사 조언** 포함.
+
+### 리포트 응답 구조
+
+```json
+{
+  "summary": "상황 요약",
+  "keyInsights": ["인사이트 1", "인사이트 2"],
+  "suggestedPhrases": ["추천 표현 1", "추천 표현 2"],
+  "counselorAdvice": "💙 RAG 기반 심리상담사 조언",
+  "psychologicalNote": "심리학적 분석",
+  "encouragement": "격려 메시지",
+  "emotions": ["감정1", "감정2"],
+  "confidence": 0.85
+}
+```
+
+---
+
+## 🔧 환경 변수
+
+| 이름             | 설명                             |
+| ---------------- | -------------------------------- |
+| `GEMINI_API_KEY` | Google Gemini API 키 (필수)      |
+| `GEMINI_MODEL`   | 모델 ID (기본: gemini-2.0-flash) |
+| `DATABASE_URL`   | SQLAlchemy 연결 문자열           |
+| `PROJECT_NAME`   | 프로젝트 이름                    |
+| `API_PREFIX`     | API 경로 접두사 (기본: /api)     |
+
+---
+
+## 🛠️ 주요 명령어
+
+```bash
+# 개발 서버 실행
+uvicorn app.main:app --reload
+
+# 벡터 DB 빌드 (데이터 변경 시)
+python -m app.scripts.build_vector_db
+
+# 헬스 체크
 curl http://localhost:8000/health
-
-# 2) 요약 생성
-curl -X POST http://localhost:8000/api/reflections/summary \
-  -H "Content-Type: application/json" \
-  -d '{"whatHappened":"회의에서 충돌","whatYouDid":"즉각 반박","howYouWishItHadGone":"차분히 설명"}'
-
-# 3) 리포트 생성 (대화 전문 전달 필수)
-curl -X POST http://localhost:8000/api/reflections/reports \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "session-123",
-    "conversationContext": "What Happened: ...\\nEmotions: ...\\nConversation:\\nUser: ...\\nAI: ..."
-  }'
-
-# 4) 리포트 조회 (JSON)
-curl http://localhost:8000/api/reflections/reports/1
-
-# 5) 리포트 조회 (Markdown)
-curl -i http://localhost:8000/api/reflections/reports/1?format=md
 ```
 
-LLM을 켜고 끄면서 위 명령을 실행해 보면, 응답에 포함되는 필드가 어떻게 달라지는지 바로 확인할 수 있습니다.
+---
+
+## 📝 주의사항
+
+- `chroma_db/` 폴더는 `.gitignore`에 포함되어 있습니다
+- 새 환경에서는 반드시 `python -m app.scripts.build_vector_db` 실행 필요
+- Gemini API 키가 없으면 규칙 기반 로직으로 자동 전환됩니다
+
+---
+
+## 🆕 최근 업데이트 (2025.11.30)
+
+| 기능                 | 설명                                                  |
+| -------------------- | ----------------------------------------------------- |
+| **RAG 시스템**       | 13,234개 상담 데이터 기반 유사 사례 검색              |
+| **심리상담사 조언**  | RAG로 검색된 유사 사례를 참고한 전문 상담사 톤의 조언 |
+| **사용자 이름 호칭** | 회원가입 시 입력한 이름으로 조언에서 호칭             |
+| **프롬프트 개선**    | Few-shot 예시, 비언어적 표현, 심리학적 분석 강화      |

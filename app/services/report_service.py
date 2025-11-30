@@ -10,6 +10,7 @@ def generate_report_for_session(
     conversation_text: str,
     service: ChatService,
     requestor: Optional[str] = None,
+    user_name: str = "사용자",
 ) -> dict:
     """
     동기 리포트 생성:
@@ -25,6 +26,7 @@ def generate_report_for_session(
         "emotions": [],  # 자동 감정 추출 유도
         "what_you_did": "",
         "desired_outcome": "",
+        "user_name": user_name,  # 사용자 이름 전달
     }
     summary_struct = service.summarize_reflection(payload)
 
@@ -67,8 +69,8 @@ def generate_report_for_session(
         "keyInsights": summary_struct["keyInsights"],
         "suggestedPhrases": summary_struct["suggestedPhrases"],
         "emotions": summary_struct["emotions"],
-        "decisionPoints": summary_struct["decisionPoints"],
-        "actionItems": summary_struct["actionItems"],
+        "decisionPoints": summary_struct.get("decisionPoints", []),
+        "actionItems": summary_struct.get("actionItems", []),
         "confidence": summary_struct["confidence"],
     }
 
@@ -77,5 +79,25 @@ def generate_report_for_session(
         report_json["emotionsDetailed"] = summary_struct["emotionsDetailed"]
     if "moodTimeline" in summary_struct:
         report_json["moodTimeline"] = summary_struct["moodTimeline"]
+
+    # RAG 강화된 새 필드들
+    
+    # 심리상담사의 조언 (핵심 필드)
+    if "counselorAdvice" in summary_struct:
+        report_json["counselorAdvice"] = summary_struct["counselorAdvice"]
+        md_lines.insert(4, "\n## 💙 심리상담사의 조언")
+        md_lines.insert(5, summary_struct["counselorAdvice"])
+    
+    # 심리학적 분석
+    if "psychologicalNote" in summary_struct:
+        report_json["psychologicalNote"] = summary_struct["psychologicalNote"]
+        md_lines.append("\n## 심리학적 분석")
+        md_lines.append(summary_struct["psychologicalNote"])
+    
+    # 격려 메시지
+    if "encouragement" in summary_struct:
+        report_json["encouragement"] = summary_struct["encouragement"]
+        md_lines.append("\n## 상담사의 한마디")
+        md_lines.append(summary_struct["encouragement"])
 
     return {"report_md": report_md, "report_json": report_json}

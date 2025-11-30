@@ -79,6 +79,9 @@ cover/
 app/data/*.db
 app/data/*.sqlite3
 
+# Vector DB (ChromaDB) - 로컬에서 빌드
+app/data/chroma_db/
+
 # Tooling artifacts
 .python-version
 

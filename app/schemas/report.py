@@ -7,6 +7,7 @@ class ReportCreateRequest(BaseModel):
     session_id: str = Field(..., alias="sessionId")
     requestor: Optional[str] = None
     conversation_context: str = Field(..., alias="conversationContext")
+    user_name: str = Field(default="사용자", alias="userName")
 
     model_config = ConfigDict(populate_by_name=True)
 

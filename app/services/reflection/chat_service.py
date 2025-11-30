@@ -2,8 +2,15 @@ import json
 import logging
 from typing import List, Mapping, Optional, Any
 
-from .prompt_templates import SUMMARY_JSON_PROMPT, CHAT_PROMPT
+from .prompt_templates import SUMMARY_JSON_PROMPT, CHAT_PROMPT, RAG_CONTEXT_TEMPLATE
 from .emotion_postprocess import postprocess_emotions, clamp_mood_timeline
+
+# RAG 서비스 import (옵션)
+try:
+    from ..rag_service import get_rag_service
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -11,13 +18,17 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """
     LangChain 기반 Reflection/Chat 서비스.
-    - summarize_reflection: JSON 기반 회고 분석
+    - summarize_reflection: JSON 기반 회고 분석 (RAG 강화)
     - generate_chat_reply: persona 기반 대화 응답 생성
     """
 
     def __init__(self, settings=None, llm: Optional[Any] = None):
         self.settings = settings
         self.llm = llm
+        # RAG 서비스 초기화
+        self._rag_service = get_rag_service() if RAG_AVAILABLE else None
+        if self._rag_service:
+            logger.info("RAG 서비스가 ChatService에 통합되었습니다.")
 
     # --------------------------
     # Utilities
@@ -100,15 +111,40 @@ class ChatService:
         return items[:10]
 
     # --------------------------
-    # LLM Summary
+    # LLM Summary (RAG Enhanced)
     # --------------------------
 
-    def _invoke_llm_summary(self, text: str) -> Optional[dict]:
+    def _get_rag_context(self, text: str, emotions: List[str] = None) -> str:
+        """RAG를 사용하여 유사 상담 사례 컨텍스트 생성"""
+        if not self._rag_service:
+            return ""
+
+        try:
+            context = self._rag_service.get_context_for_report(
+                conversation_text=text,
+                emotions=emotions,
+                n_results=3,
+            )
+            if context:
+                return RAG_CONTEXT_TEMPLATE.format(similar_cases=context)
+            return ""
+        except Exception as e:
+            logger.warning(f"RAG 컨텍스트 생성 실패: {e}")
+            return ""
+
+    def _invoke_llm_summary(self, text: str, emotions: List[str] = None, user_name: str = "사용자") -> Optional[dict]:
         if not self.llm:
             return None
 
         try:
-            prompt = SUMMARY_JSON_PROMPT.format(input_text=text)
+            # RAG 컨텍스트 추가
+            rag_context = self._get_rag_context(text, emotions)
+
+            prompt = SUMMARY_JSON_PROMPT.format(
+                input_text=text,
+                rag_context=rag_context,
+                user_name=user_name,
+            )
             response = self.llm.invoke(prompt)
 
             raw_text = response.content if hasattr(response, "content") else str(response)
@@ -146,6 +182,7 @@ class ChatService:
 
     def summarize_reflection(self, payload: Mapping[str, object]) -> dict:
         emotions: List[str] = list(payload.get("emotions", []) or [])
+        user_name: str = str(payload.get("user_name", "사용자"))
         base_text = " ".join(
             [
                 str(payload.get("what_happened", "")),
@@ -157,7 +194,8 @@ class ChatService:
         if not emotions:
             emotions = self.detect_emotions(base_text)
 
-        parsed = self._invoke_llm_summary(base_text)
+        # RAG 컨텍스트와 함께 LLM 호출 (사용자 이름 포함)
+        parsed = self._invoke_llm_summary(base_text, emotions, user_name)
 
         if parsed:
             parsed = postprocess_emotions(parsed, base_text)
@@ -200,12 +238,20 @@ class ChatService:
                 "confidence": confidence,
             }
 
+            # RAG 기반 심리상담사 조언 필드들 추가
+            if "counselorAdvice" in parsed:
+                result["counselorAdvice"] = str(parsed["counselorAdvice"]).strip()
+            if "psychologicalNote" in parsed:
+                result["psychologicalNote"] = str(parsed["psychologicalNote"]).strip()
+            if "encouragement" in parsed:
+                result["encouragement"] = str(parsed["encouragement"]).strip()
+
             if "emotionsDetailed" in parsed:
                 result["emotionsDetailed"] = parsed["emotionsDetailed"]
             if "moodTimeline" in parsed:
                 result["moodTimeline"] = parsed["moodTimeline"]
 
-            logger.info("Using LLM summary path")
+            logger.info("Using LLM summary path with RAG-enhanced fields")
             return result
 
         logger.info("Using rule-based fallback")

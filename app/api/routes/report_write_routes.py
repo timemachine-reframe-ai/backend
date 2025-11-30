@@ -50,6 +50,7 @@ def create_report(
             conversation_text=conversation_context,
             service=service,
             requestor=requestor,
+            user_name=payload.user_name,
         )
         report.report_md = generated["report_md"]
         report.report_json = json.dumps(generated["report_json"], ensure_ascii=False)
